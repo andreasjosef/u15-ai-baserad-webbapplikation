@@ -8,8 +8,11 @@ import { useState, type FormEvent } from 'react'
 import {
   parseSignInCredentials,
   parseSignUpCredentials,
+  type ParsedCredentials,
+  type SignInInput,
+  type SignUpInput,
 } from '../lib/auth-input.ts'
-import type { AuthResult } from '../lib/auth-result.ts'
+import { GENERIC_FAILURE, type AuthResult } from '../lib/auth-result.ts'
 
 export interface AuthFormProps {
   mode: 'log-in' | 'sign-up'
@@ -22,46 +25,45 @@ export function AuthForm({ mode, onSubmit }: AuthFormProps) {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const form = event.currentTarget
-    const formData = new FormData(form)
+    const formData = new FormData(event.currentTarget)
 
+    // A ternary here would collapse the two ParsedCredentials variants
+    // (subtype reduction: SignUpInput is a subtype of SignInInput), so
+    // the declared union is built with plain if/else instead.
+    let parsed: ParsedCredentials<SignUpInput> | ParsedCredentials<SignInInput>
     if (mode === 'sign-up') {
-      const result = parseSignUpCredentials({
+      parsed = parseSignUpCredentials({
         name: formData.get('name'),
         email: formData.get('email'),
         password: formData.get('password'),
       })
-      if (!result.ok) {
-        setError(result.message)
-        return
-      }
-      await submit(result.data)
+    } else {
+      parsed = parseSignInCredentials({
+        email: formData.get('email'),
+        password: formData.get('password'),
+      })
+    }
+    if (!parsed.ok) {
+      setError(parsed.message)
       return
     }
 
-    const result = parseSignInCredentials({
-      email: formData.get('email'),
-      password: formData.get('password'),
-    })
-    if (!result.ok) {
-      setError(result.message)
-      return
-    }
-    await submit(result.data)
-  }
-
-  async function submit(data: { name?: string; email: string; password: string }) {
     setError(null)
     setPending(true)
     try {
-      const result = await onSubmit({
-        name: data.name ?? '',
-        email: data.email,
-        password: data.password,
+      // The server-side validator re-runs the same parser, so its thrown
+      // rejection is a should-never-happen defense — but a thrown error
+      // crossing the wire still lands here as a retryable alert.
+      const submitted = await onSubmit({
+        name: 'name' in parsed.data ? parsed.data.name : '',
+        email: parsed.data.email,
+        password: parsed.data.password,
       })
-      if (!result.ok) {
-        setError(result.message)
+      if (!submitted.ok) {
+        setError(submitted.message)
       }
+    } catch {
+      setError(GENERIC_FAILURE.message)
     } finally {
       setPending(false)
     }

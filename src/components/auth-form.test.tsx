@@ -73,6 +73,27 @@ describe('AuthForm in log-in mode', () => {
     })
   })
 
+  it('shows a retryable alert instead of crashing when the submit action throws', async () => {
+    const submit = vi.fn(async () => {
+      throw new Error('network gone')
+    })
+    render(<AuthForm mode="log-in" onSubmit={submit} />)
+
+    fireEvent.input(screen.getByLabelText('Email'), {
+      target: { value: 'person@example.com' },
+    })
+    fireEvent.input(screen.getByLabelText('Password'), {
+      target: { value: 'whatever-8+' },
+    })
+    fireEvent.submit((screen.getByRole('button', { name: 'Log in' }) as HTMLButtonElement).form!)
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Something went wrong. Please try again.',
+      )
+    })
+  })
+
   it('disables the submit button while the action is pending', async () => {
     const { submit, resolve } = deferredSubmit()
     render(<AuthForm mode="log-in" onSubmit={submit} />)

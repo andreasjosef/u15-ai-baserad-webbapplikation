@@ -10,7 +10,7 @@ import {
   parseSignInCredentials,
   parseSignUpCredentials,
 } from '../auth-input.ts'
-import { toAuthResult, type AuthResult } from '../auth-result.ts'
+import { GENERIC_FAILURE, toAuthResult, type AuthResult } from '../auth-result.ts'
 import { auth } from '../auth.ts'
 
 export const signUp = createServerFn({ method: 'POST' })
@@ -57,6 +57,14 @@ export const signIn = createServerFn({ method: 'POST' })
     }
   })
 
-export const signOut = createServerFn({ method: 'POST' }).handler(async () => {
-  await auth.api.signOut({ headers: getRequestHeaders() })
+// Never throws: a failed log-out would otherwise strand the user on a
+// log-in-gated page with no visible retry (plan.md §10 — no silent
+// failures), so the route renders the returned failure instead.
+export const signOut = createServerFn({ method: 'POST' }).handler(async (): Promise<AuthResult> => {
+  try {
+    await auth.api.signOut({ headers: getRequestHeaders() })
+    return { ok: true }
+  } catch {
+    return GENERIC_FAILURE
+  }
 })

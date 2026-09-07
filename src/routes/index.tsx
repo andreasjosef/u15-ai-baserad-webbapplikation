@@ -2,14 +2,16 @@
 // #22). `beforeLoad` redirects an anonymous visitor to the log-in route
 // and otherwise exposes the session to the component as route context.
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { useState } from 'react'
 
-import { requireSession } from '../lib/require-session.ts'
+import type { AuthResult } from '../lib/auth-result.ts'
+import { requireAuthSession } from '../lib/require-auth-session.ts'
 import { signOut } from '../lib/server/auth-actions.ts'
 import { getSession } from '../lib/server/session.ts'
 
 export const Route = createFileRoute('/')({
   beforeLoad: async () => {
-    const session = requireSession(await getSession())
+    const session = requireAuthSession(await getSession())
     return { session }
   },
   component: IndexPage,
@@ -22,8 +24,11 @@ function IndexPage() {
     <HomePage
       user={session.user}
       onLogOut={async () => {
-        await signOut()
-        await navigate({ to: '/login' })
+        const result = await signOut()
+        if (result.ok) {
+          await navigate({ to: '/login' })
+        }
+        return result
       }}
     />
   )
@@ -34,8 +39,9 @@ export function HomePage({
   onLogOut,
 }: {
   user: { name: string; email: string }
-  onLogOut: () => Promise<void>
+  onLogOut: () => Promise<AuthResult>
 }) {
+  const [error, setError] = useState<string | null>(null)
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-4 text-center">
       <h1 className="text-5xl font-bold tracking-tight">Hone</h1>
@@ -48,11 +54,21 @@ export function HomePage({
       </p>
       <button
         type="button"
-        onClick={() => onLogOut()}
+        onClick={async () => {
+          const result = await onLogOut()
+          if (!result.ok) {
+            setError(result.message)
+          }
+        }}
         className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium hover:bg-neutral-100"
       >
         Log out
       </button>
+      {error && (
+        <p role="alert" className="text-sm text-red-600">
+          {error}
+        </p>
+      )}
     </main>
   )
 }

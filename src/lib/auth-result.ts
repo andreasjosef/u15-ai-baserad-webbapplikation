@@ -6,7 +6,7 @@ import { APIError } from 'better-auth'
 
 export type AuthResult = { ok: true } | { ok: false; message: string }
 
-const GENERIC_FAILURE: AuthResult = {
+export const GENERIC_FAILURE: { ok: false; message: string } = {
   ok: false,
   message: 'Something went wrong. Please try again.',
 }
