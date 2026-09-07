@@ -1,8 +1,47 @@
-import { createFileRoute } from '@tanstack/react-router'
+// The app home — the first route that requires a logged-in user (issue
+// #22). `beforeLoad` redirects an anonymous visitor to the log-in route
+// and otherwise exposes the session to the component as route context.
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { useState } from 'react'
 
-export const Route = createFileRoute('/')({ component: HomePage })
+import type { AuthResult } from '../lib/auth-result.ts'
+import { requireAuthSession } from '../lib/require-auth-session.ts'
+import { signOut } from '../lib/server/auth-actions.ts'
+import { getSession } from '../lib/server/session.ts'
 
-export function HomePage() {
+export const Route = createFileRoute('/')({
+  beforeLoad: async () => {
+    const session = requireAuthSession(await getSession())
+    return { session }
+  },
+  component: IndexPage,
+})
+
+function IndexPage() {
+  const { session } = Route.useRouteContext()
+  const navigate = useNavigate()
+  return (
+    <HomePage
+      user={session.user}
+      onLogOut={async () => {
+        const result = await signOut()
+        if (result.ok) {
+          await navigate({ to: '/login' })
+        }
+        return result
+      }}
+    />
+  )
+}
+
+export function HomePage({
+  user,
+  onLogOut,
+}: {
+  user: { name: string; email: string }
+  onLogOut: () => Promise<AuthResult>
+}) {
+  const [error, setError] = useState<string | null>(null)
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-4 text-center">
       <h1 className="text-5xl font-bold tracking-tight">Hone</h1>
@@ -10,6 +49,26 @@ export function HomePage() {
         Turn a vague idea into a concrete plan. Placeholder page — the
         interview is on its way.
       </p>
+      <p className="text-sm text-neutral-600">
+        Signed in as {user.name} ({user.email})
+      </p>
+      <button
+        type="button"
+        onClick={async () => {
+          const result = await onLogOut()
+          if (!result.ok) {
+            setError(result.message)
+          }
+        }}
+        className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium hover:bg-neutral-100"
+      >
+        Log out
+      </button>
+      {error && (
+        <p role="alert" className="text-sm text-red-600">
+          {error}
+        </p>
+      )}
     </main>
   )
 }
