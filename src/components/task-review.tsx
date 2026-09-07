@@ -5,14 +5,14 @@
 // without a router, db, or network.
 //
 // Fully editable before anything is confirmed: rename a task, change
-// its priority or due date, add a task, or remove a task. No Todoist
-// side effect exists yet — editing only calls back, and the caller
-// persists to local/persisted state (the confirm step arrives with the
-// `create_todoist_tasks` ticket). Priority uses the friendly enum
-// everywhere. Text edits commit on blur (no server write per
-// keystroke); the priority select commits on change. A title cleared
-// to empty commits nothing and snaps back — the row always keeps a
-// server-visible title.
+// its priority or due date, add a task, or remove a task. Confirming
+// (issue #26) fires the direct backend action `create_todoist_tasks`
+// via the injected onConfirmTask — never a model tool call — and a
+// failure leaves the table exactly as it was: confirming again is the
+// retry. Priority uses the friendly enum everywhere. Text edits commit
+// on blur (no server write per keystroke); the priority select commits
+// on change. A title cleared to empty commits nothing and snaps back —
+// the row always keeps a server-visible title.
 import { useState, type ChangeEvent, type FocusEvent } from 'react'
 
 import type { TaskEditInput, TaskPriority } from '../lib/task-input.ts'
@@ -37,6 +37,10 @@ export interface TaskReviewProps {
   onUpdateTask: (taskId: string, task: TaskEditInput) => Promise<TaskActionResult>
   onAddTask: (task: TaskEditInput) => Promise<TaskActionResult>
   onRemoveTask: (taskId: string) => Promise<TaskActionResult>
+  // The confirm step (issue #26): fires create_todoist_tasks for the
+  // whole reviewed breakdown. Optional so the table stays testable
+  // without it; a failure renders as the same retryable alert.
+  onConfirmTask?: () => Promise<TaskActionResult>
 }
 
 // Empty input means "cleared" — persisted as null rather than ''.
@@ -54,6 +58,7 @@ export function TaskReview({
   onUpdateTask,
   onAddTask,
   onRemoveTask,
+  onConfirmTask,
 }: TaskReviewProps) {
   const [draft, setDraft] = useState({
     title: '',
@@ -167,6 +172,24 @@ export function TaskReview({
     return (event: FocusEvent<HTMLInputElement>) => {
       event.preventDefault()
       commitEdit(task, field)
+    }
+  }
+
+  // The confirm step (issue #26): one callback, no extra state — a
+  // failure leaves the table untouched and the button re-enabled, so
+  // confirming again is the retry.
+  async function handleConfirm() {
+    if (pending || onConfirmTask === undefined) {
+      return
+    }
+    setError(null)
+    try {
+      const result = await onConfirmTask()
+      if (!result.ok) {
+        setError(result.message)
+      }
+    } catch {
+      setError('Something went wrong creating your tasks in Todoist. Try again.')
     }
   }
 
@@ -305,6 +328,16 @@ export function TaskReview({
           </tr>
         </tfoot>
       </table>
+      {onConfirmTask && (
+        <button
+          type="button"
+          onClick={() => void handleConfirm()}
+          disabled={pending}
+          className="self-start rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+        >
+          {pending ? 'Adding to Todoist…' : 'Add these tasks to Todoist'}
+        </button>
+      )}
     </section>
   )
 }

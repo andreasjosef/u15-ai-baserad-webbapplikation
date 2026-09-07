@@ -33,6 +33,10 @@ export interface InterviewViewProps {
   onUpdateTask?: (taskId: string, task: TaskEditInput) => Promise<TaskActionResult>
   onAddTask?: (task: TaskEditInput) => Promise<TaskActionResult>
   onRemoveTask?: (taskId: string) => Promise<TaskActionResult>
+  // The confirm step (issue #26): fires create_todoist_tasks for the
+  // reviewed breakdown. On success the caller moves the Phase to
+  // Completed, which swaps this view to its wrapped-up state.
+  onConfirmTask?: () => Promise<TaskActionResult>
   // Returns ok:false with nothing rendered — the failure message is
   // shown by this component as a retryable alert, and the typed message
   // stays in the box (plan.md §10 — no silent failures).
@@ -49,11 +53,13 @@ export function InterviewView({
   onUpdateTask,
   onAddTask,
   onRemoveTask,
+  onConfirmTask,
   onSubmit,
 }: InterviewViewProps) {
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
   const started = messages.length > 0
+  const completed = phase === 'Completed'
   const reviewing =
     phase === 'Proposed' &&
     projectTitle !== null &&
@@ -114,6 +120,15 @@ export function InterviewView({
         </ol>
       )}
 
+      {completed && (
+        <p
+          role="status"
+          className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700"
+        >
+          Your tasks are in Todoist — this Interview is wrapped up.
+        </p>
+      )}
+
       {reviewing ? (
         <TaskReview
           projectTitle={projectTitle}
@@ -122,8 +137,9 @@ export function InterviewView({
           onUpdateTask={onUpdateTask}
           onAddTask={onAddTask}
           onRemoveTask={onRemoveTask}
+          onConfirmTask={onConfirmTask}
         />
-      ) : (
+      ) : completed ? null : (
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <label className="flex flex-col gap-1 text-sm">
             {started ? 'Your answer' : 'Your vague idea'}

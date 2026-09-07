@@ -9,6 +9,12 @@
 // rows are loaded from the server (they need their row ids), and every
 // edit is applied optimistically before its server call — a failure
 // reverts the row and surfaces the retryable message.
+//
+// Confirming the reviewed breakdown (issue #26) fires the direct
+// backend action `create_todoist_tasks` — the model never sees it. On
+// success the Phase moves to Completed (derived from
+// `interview_sessions.todoist_project_id` being set); a failure leaves
+// the table untouched, so confirming again is the retry.
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 
@@ -26,6 +32,7 @@ import {
   startInterview,
   updateTaskInBreakdown,
 } from '../lib/server/interview-actions.ts'
+import { confirmTaskBreakdown } from '../lib/server/todoist-creation-actions.ts'
 import { getSession } from '../lib/server/session.ts'
 
 export const Route = createFileRoute('/interview')({
@@ -148,6 +155,25 @@ function InterviewRoute() {
     }
   }
 
+  // Confirming the reviewed breakdown (issue #26): on success the Phase
+  // moves to Completed locally — the server's `todoist_project_id` write
+  // is the durable source of that read. A failure returns the message;
+  // the table is untouched, so confirming again is the retry.
+  async function handleConfirmTask(): Promise<TaskActionResult> {
+    if (!sessionId) {
+      return { ok: false, message: INTERVIEW_FAILURE }
+    }
+    try {
+      const result = await confirmTaskBreakdown({ data: { sessionId } })
+      if (result.ok) {
+        setPhase('Completed')
+      }
+      return result
+    } catch {
+      return { ok: false, message: INTERVIEW_FAILURE }
+    }
+  }
+
   return (
     <InterviewView
       messages={messages}
@@ -159,6 +185,7 @@ function InterviewRoute() {
       onUpdateTask={handleUpdateTask}
       onAddTask={handleAddTask}
       onRemoveTask={handleRemoveTask}
+      onConfirmTask={handleConfirmTask}
       onSubmit={handleSubmit}
     />
   )

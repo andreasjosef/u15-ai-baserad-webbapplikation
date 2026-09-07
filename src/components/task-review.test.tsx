@@ -153,4 +153,42 @@ describe('TaskReview', () => {
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/try again/i))
     expect((draft.getByLabelText(/title/i) as HTMLInputElement).value).toBe('Sweep the floor')
   })
+
+  // --- Confirm to Todoist (issue #26) --------------------------------------
+
+  it('offers no confirm button unless a confirm callback is provided', () => {
+    render(<TaskReview {...baseProps} />)
+    expect(screen.queryByRole('button', { name: /todoist/i })).not.toBeInTheDocument()
+  })
+
+  it('confirms the reviewed breakdown through onConfirmTask', async () => {
+    const onConfirmTask = vi.fn().mockResolvedValue({ ok: true })
+    render(<TaskReview {...baseProps} onConfirmTask={onConfirmTask} />)
+    fireEvent.click(screen.getByRole('button', { name: /todoist/i }))
+
+    await waitFor(() => expect(onConfirmTask).toHaveBeenCalledWith())
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('shows a failed confirm as a retryable alert — confirming again is the retry', async () => {
+    const onConfirmTask = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, message: 'Something went wrong creating your tasks in Todoist. Try again.' })
+      .mockResolvedValueOnce({ ok: true })
+    render(<TaskReview {...baseProps} onConfirmTask={onConfirmTask} />)
+    const confirm = screen.getByRole('button', { name: /todoist/i })
+    fireEvent.click(confirm)
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/todoist/i))
+
+    fireEvent.click(confirm)
+    await waitFor(() => expect(onConfirmTask).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
+  })
+
+  it('disables the confirm button while pending', () => {
+    const onConfirmTask = vi.fn()
+    render(<TaskReview {...baseProps} pending onConfirmTask={onConfirmTask} />)
+    expect(screen.getByRole('button', { name: /todoist/i })).toBeDisabled()
+  })
 })
