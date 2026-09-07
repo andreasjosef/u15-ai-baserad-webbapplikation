@@ -23,6 +23,7 @@ function IndexPage() {
   return (
     <HomePage
       user={session.user}
+      onOpenSettings={() => navigate({ to: '/settings' })}
       onLogOut={async () => {
         const result = await signOut()
         if (result.ok) {
@@ -37,9 +38,13 @@ function IndexPage() {
 export function HomePage({
   user,
   onLogOut,
+  onOpenSettings,
 }: {
   user: { name: string; email: string }
   onLogOut: () => Promise<AuthResult>
+  // Navigation arrives as a prop (like onLogOut) so this exported component
+  // stays renderable outside a router context — its tests do exactly that.
+  onOpenSettings: () => void
 }) {
   const [error, setError] = useState<string | null>(null)
   return (
@@ -63,6 +68,13 @@ export function HomePage({
         className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium hover:bg-neutral-100"
       >
         Log out
+      </button>
+      <button
+        type="button"
+        onClick={onOpenSettings}
+        className="text-sm text-neutral-600 underline hover:text-neutral-900"
+      >
+        Account settings
       </button>
       {error && (
         <p role="alert" className="text-sm text-red-600">

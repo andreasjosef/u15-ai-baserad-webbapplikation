@@ -4,17 +4,30 @@ import { HomePage } from './index'
 
 const user = { name: 'Test User', email: 'person@example.com' }
 
+function renderHomePage(onLogOut = async () => ({ ok: true }) as const) {
+  const onOpenSettings = vi.fn()
+  render(<HomePage user={user} onLogOut={onLogOut} onOpenSettings={onOpenSettings} />)
+  return { onOpenSettings }
+}
+
 describe('HomePage', () => {
   it('renders the app name as a heading', () => {
-    render(<HomePage user={user} onLogOut={async () => ({ ok: true })} />)
+    renderHomePage()
     expect(
       screen.getByRole('heading', { level: 1, name: 'Hone' }),
     ).toBeInTheDocument()
   })
 
+  it('offers a way to open account settings', () => {
+    const { onOpenSettings } = renderHomePage()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Account settings' }))
+    expect(onOpenSettings).toHaveBeenCalledTimes(1)
+  })
+
   it('shows who is signed in and offers a log out action', async () => {
     const onLogOut = vi.fn(async () => ({ ok: true }) as const)
-    render(<HomePage user={user} onLogOut={onLogOut} />)
+    render(<HomePage user={user} onLogOut={onLogOut} onOpenSettings={() => {}} />)
 
     expect(screen.getByText(/Signed in as Test User/)).toBeInTheDocument()
 
@@ -27,7 +40,7 @@ describe('HomePage', () => {
       ok: false,
       message: 'Something went wrong. Please try again.',
     }) as const)
-    render(<HomePage user={user} onLogOut={onLogOut} />)
+    render(<HomePage user={user} onLogOut={onLogOut} onOpenSettings={() => {}} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
 
