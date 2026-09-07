@@ -6,7 +6,11 @@
 // grilling) leaking into anything the user could see.
 import { describe, expect, it } from 'vitest'
 
-import { INTERVIEW_SYSTEM_PROMPT, MARK_CHECKPOINT_TOOL } from './interview-prompt.ts'
+import {
+  INTERVIEW_SYSTEM_PROMPT,
+  MARK_CHECKPOINT_TOOL,
+  PROPOSE_TASK_BREAKDOWN_TOOL,
+} from './interview-prompt.ts'
 
 describe('INTERVIEW_SYSTEM_PROMPT', () => {
   it('enforces one question at a time', () => {
@@ -34,5 +38,42 @@ describe('MARK_CHECKPOINT_TOOL', () => {
     expect(parameters.type).toBe('object')
     expect(parameters.required).toContain('project_summary')
     expect(parameters.properties.project_summary?.type).toBe('string')
+  })
+})
+
+describe('PROPOSE_TASK_BREAKDOWN_TOOL', () => {
+  it('exposes propose_task_breakdown with required project_title and tasks arguments', () => {
+    expect(PROPOSE_TASK_BREAKDOWN_TOOL.function.name).toBe('propose_task_breakdown')
+    const parameters = PROPOSE_TASK_BREAKDOWN_TOOL.function.parameters as unknown as {
+      type: string
+      required: string[]
+      properties: Record<string, unknown>
+    }
+    expect(parameters.type).toBe('object')
+    expect(parameters.required).toContain('project_title')
+    expect(parameters.required).toContain('tasks')
+    expect(parameters.properties.project_title).toMatchObject({ type: 'string' })
+    expect(parameters.properties.tasks).toMatchObject({ type: 'array' })
+  })
+
+  it('offers each task with a title, optional extras, and the friendly priority enum', () => {
+    const parameters = PROPOSE_TASK_BREAKDOWN_TOOL.function.parameters as unknown as {
+      properties: {
+        tasks: {
+          items: {
+            type: string
+            required: string[]
+            properties: Record<string, { type: string; enum?: string[] }>
+          }
+        }
+      }
+    }
+    const item = parameters.properties.tasks.items
+    expect(item.type).toBe('object')
+    expect(item.required).toContain('title')
+    expect(item.properties.title).toMatchObject({ type: 'string' })
+    expect(item.properties.description).toMatchObject({ type: 'string' })
+    expect(item.properties.due_string).toMatchObject({ type: 'string' })
+    expect(item.properties.priority?.enum).toEqual(['normal', 'medium', 'high', 'urgent'])
   })
 })

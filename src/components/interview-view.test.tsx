@@ -95,4 +95,25 @@ describe('InterviewView', () => {
     expect(screen.getByRole('button', { name: /send/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /start/i })).not.toBeInTheDocument()
   })
+
+  it('renders the editable review table in the Proposed phase and retires the answer box', () => {
+    render(
+      <InterviewView
+        {...baseProps}
+        phase="Proposed"
+        projectSummary="Sort out the garage"
+        projectTitle="Garage cleanup"
+        tasks={[
+          { id: 't1', title: 'Clear out old boxes', description: null, priority: 'high', dueString: null },
+        ]}
+        onUpdateTask={vi.fn()}
+        onAddTask={vi.fn()}
+        onRemoveTask={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('heading', { name: /garage cleanup/i })).toBeInTheDocument()
+    expect(screen.getByRole('table')).toBeInTheDocument()
+    expect(screen.queryByLabelText(/idea/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /send|start/i })).not.toBeInTheDocument()
+  })
 })
