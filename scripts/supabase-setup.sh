@@ -184,7 +184,7 @@ finish() {
 # Replace the example below. Set TOTAL_STAGES to match the stages you write.
 # ──────────────────────────────────────────────────────────────────────────
 
-TOTAL_STAGES=5
+TOTAL_STAGES=6
 ENV_FILE=".env.local"   # this repo's local-dev env file (see .env.example)
 VERCEL="npx vercel"
 
@@ -278,6 +278,51 @@ elif confirm "Push DATABASE_URL and MIGRATION_DATABASE_URL to Vercel (Production
 else
   SKIPPED+=("Vercel env vars not set — run: $VERCEL env add DATABASE_URL production (and preview, and MIGRATION_DATABASE_URL)")
   warn "skipped — the deployed app will fail until these are set"
+fi
+
+# ── Stage 6: Better Auth's secret + base URL ─────────────────────────────
+stage "Better Auth secret + base URL (issue #35)"
+say "Better Auth refuses to start with its built-in default secret whenever"
+say "NODE_ENV=production — which Vercel sets for Production *and* Preview"
+say "builds. Without BETTER_AUTH_SECRET set, the first request to /api/auth/*"
+say "throws in both (src/lib/auth-secret-guard.test.ts reproduces this)."
+current_secret=$(_existing BETTER_AUTH_SECRET || true)
+if [[ -n "$current_secret" ]]; then
+  BETTER_AUTH_SECRET="$current_secret"
+  note "reusing BETTER_AUTH_SECRET already in $ENV_FILE"
+else
+  BETTER_AUTH_SECRET=$(openssl rand -base64 32)
+  write_env BETTER_AUTH_SECRET "$BETTER_AUTH_SECRET"
+fi
+ask BETTER_AUTH_URL "Production URL (the app's canonical domain, e.g. https://hone-green-rho.vercel.app):"
+write_env BETTER_AUTH_URL "$BETTER_AUTH_URL"
+note "Preview deploys get a different URL per branch/deployment, so"
+note "BETTER_AUTH_URL is intentionally left unset there — Better Auth falls"
+note "back to deriving the origin from each incoming request (a logged"
+note "warning, not an error). See docs/adr/0004-better-auth-url-unset-on-preview.md."
+if [[ ! -f .vercel/project.json ]]; then
+  SKIPPED+=("Vercel env vars not set — this repo isn't linked yet; run scripts/vercel-connect-deploy.sh first, then re-run this wizard")
+  warn "no .vercel/project.json found — run scripts/vercel-connect-deploy.sh first"
+elif confirm "Push BETTER_AUTH_SECRET (Production + Preview) and BETTER_AUTH_URL (Production) to Vercel?"; then
+  for env in production preview; do
+    $VERCEL env rm BETTER_AUTH_SECRET "$env" -y >/dev/null 2>&1 || true
+    if printf '%s' "$BETTER_AUTH_SECRET" | $VERCEL env add BETTER_AUTH_SECRET "$env" >/dev/null 2>&1; then
+      printf '  %s✓ set%s Vercel env BETTER_AUTH_SECRET (%s)\n' "$GREEN" "$RESET" "$env"
+    else
+      SKIPPED+=("Vercel env BETTER_AUTH_SECRET ($env) — set manually: $VERCEL env add BETTER_AUTH_SECRET $env")
+      warn "couldn't set Vercel env BETTER_AUTH_SECRET ($env)"
+    fi
+  done
+  $VERCEL env rm BETTER_AUTH_URL production -y >/dev/null 2>&1 || true
+  if printf '%s' "$BETTER_AUTH_URL" | $VERCEL env add BETTER_AUTH_URL production >/dev/null 2>&1; then
+    printf '  %s✓ set%s Vercel env BETTER_AUTH_URL (production)\n' "$GREEN" "$RESET"
+  else
+    SKIPPED+=("Vercel env BETTER_AUTH_URL (production) — set manually: $VERCEL env add BETTER_AUTH_URL production")
+    warn "couldn't set Vercel env BETTER_AUTH_URL (production)"
+  fi
+else
+  SKIPPED+=("Vercel env vars not set — run: $VERCEL env add BETTER_AUTH_SECRET production (and preview, and BETTER_AUTH_URL production)")
+  warn "skipped — sign-in/sign-up will throw on first request in every deployed environment until this runs"
 fi
 # ──────────────────────────────────────────────────────────────────────────
 
