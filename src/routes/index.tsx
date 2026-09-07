@@ -23,6 +23,7 @@ function IndexPage() {
   return (
     <HomePage
       user={session.user}
+      onStartInterview={() => navigate({ to: '/interview' })}
       onOpenSettings={() => navigate({ to: '/settings' })}
       onLogOut={async () => {
         const result = await signOut()
@@ -39,21 +40,29 @@ export function HomePage({
   user,
   onLogOut,
   onOpenSettings,
+  onStartInterview,
 }: {
   user: { name: string; email: string }
   onLogOut: () => Promise<AuthResult>
   // Navigation arrives as a prop (like onLogOut) so this exported component
   // stays renderable outside a router context — its tests do exactly that.
   onOpenSettings: () => void
+  onStartInterview: () => void
 }) {
   const [error, setError] = useState<string | null>(null)
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-4 text-center">
       <h1 className="text-5xl font-bold tracking-tight">Hone</h1>
       <p className="max-w-md text-lg text-neutral-500">
-        Turn a vague idea into a concrete plan. Placeholder page — the
-        interview is on its way.
+        Turn a vague idea into a concrete plan, one question at a time.
       </p>
+      <button
+        type="button"
+        onClick={onStartInterview}
+        className="rounded-md bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-700"
+      >
+        Start an interview
+      </button>
       <p className="text-sm text-neutral-600">
         Signed in as {user.name} ({user.email})
       </p>
