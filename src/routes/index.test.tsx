@@ -6,8 +6,16 @@ const user = { name: 'Test User', email: 'person@example.com' }
 
 function renderHomePage(onLogOut = async () => ({ ok: true }) as const) {
   const onOpenSettings = vi.fn()
-  render(<HomePage user={user} onLogOut={onLogOut} onOpenSettings={onOpenSettings} />)
-  return { onOpenSettings }
+  const onStartInterview = vi.fn()
+  render(
+    <HomePage
+      user={user}
+      onLogOut={onLogOut}
+      onOpenSettings={onOpenSettings}
+      onStartInterview={onStartInterview}
+    />,
+  )
+  return { onOpenSettings, onStartInterview }
 }
 
 describe('HomePage', () => {
@@ -16,6 +24,13 @@ describe('HomePage', () => {
     expect(
       screen.getByRole('heading', { level: 1, name: 'Hone' }),
     ).toBeInTheDocument()
+  })
+
+  it('offers a way to start an interview', () => {
+    const { onStartInterview } = renderHomePage()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start an interview' }))
+    expect(onStartInterview).toHaveBeenCalledTimes(1)
   })
 
   it('offers a way to open account settings', () => {
@@ -27,7 +42,7 @@ describe('HomePage', () => {
 
   it('shows who is signed in and offers a log out action', async () => {
     const onLogOut = vi.fn(async () => ({ ok: true }) as const)
-    render(<HomePage user={user} onLogOut={onLogOut} onOpenSettings={() => {}} />)
+    render(<HomePage user={user} onLogOut={onLogOut} onOpenSettings={() => {}} onStartInterview={() => {}} />)
 
     expect(screen.getByText(/Signed in as Test User/)).toBeInTheDocument()
 
@@ -40,7 +55,7 @@ describe('HomePage', () => {
       ok: false,
       message: 'Something went wrong. Please try again.',
     }) as const)
-    render(<HomePage user={user} onLogOut={onLogOut} onOpenSettings={() => {}} />)
+    render(<HomePage user={user} onLogOut={onLogOut} onOpenSettings={() => {}} onStartInterview={() => {}} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
 
