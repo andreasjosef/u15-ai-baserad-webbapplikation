@@ -7,6 +7,8 @@
 import { useState, type FormEvent } from 'react'
 
 import type { Phase } from '../lib/phase.ts'
+import type { TaskEditInput } from '../lib/task-input.ts'
+import { TaskReview, type TaskActionResult, type TaskRow } from './task-review.tsx'
 
 export interface InterviewMessage {
   role: 'user' | 'assistant'
@@ -22,6 +24,15 @@ export interface InterviewViewProps {
   pending: boolean
   phase: Phase
   projectSummary: string | null
+  // Present once `propose_task_breakdown` has fired (issue #25): the
+  // Proposed phase swaps the conversation for the fully editable review
+  // table — the product's actual AI-mistake-catching mechanism — before
+  // anything is confirmed to Todoist.
+  projectTitle?: string | null
+  tasks?: ReadonlyArray<TaskRow>
+  onUpdateTask?: (taskId: string, task: TaskEditInput) => Promise<TaskActionResult>
+  onAddTask?: (task: TaskEditInput) => Promise<TaskActionResult>
+  onRemoveTask?: (taskId: string) => Promise<TaskActionResult>
   // Returns ok:false with nothing rendered — the failure message is
   // shown by this component as a retryable alert, and the typed message
   // stays in the box (plan.md §10 — no silent failures).
@@ -33,11 +44,23 @@ export function InterviewView({
   pending,
   phase,
   projectSummary,
+  projectTitle = null,
+  tasks,
+  onUpdateTask,
+  onAddTask,
+  onRemoveTask,
   onSubmit,
 }: InterviewViewProps) {
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
   const started = messages.length > 0
+  const reviewing =
+    phase === 'Proposed' &&
+    projectTitle !== null &&
+    tasks !== undefined &&
+    onUpdateTask !== undefined &&
+    onAddTask !== undefined &&
+    onRemoveTask !== undefined
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -91,40 +114,55 @@ export function InterviewView({
         </ol>
       )}
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-        <label className="flex flex-col gap-1 text-sm">
-          {started ? 'Your answer' : 'Your vague idea'}
-          <textarea
-            name="idea"
-            aria-label={started ? 'Your answer' : 'Your idea'}
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            rows={3}
-            placeholder={
-              started ? undefined : 'e.g. I should really sort out the garage…'
-            }
-            className="rounded-md border border-neutral-300 px-3 py-2"
-          />
-        </label>
-        {error && (
-          <p role="alert" className="text-sm text-red-600">
-            {error}
-          </p>
-        )}
-        <button
-          type="submit"
-          disabled={pending || draft.trim() === ''}
-          className="self-start rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-        >
-          {pending ? (started ? 'Thinking…' : 'Starting…') : started ? 'Send' : 'Start the interview'}
-        </button>
-      </form>
+      {reviewing ? (
+        <TaskReview
+          projectTitle={projectTitle}
+          tasks={tasks}
+          pending={pending}
+          onUpdateTask={onUpdateTask}
+          onAddTask={onAddTask}
+          onRemoveTask={onRemoveTask}
+        />
+      ) : (
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          <label className="flex flex-col gap-1 text-sm">
+            {started ? 'Your answer' : 'Your vague idea'}
+            <textarea
+              name="idea"
+              aria-label={started ? 'Your answer' : 'Your idea'}
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              rows={3}
+              placeholder={
+                started ? undefined : 'e.g. I should really sort out the garage…'
+              }
+              className="rounded-md border border-neutral-300 px-3 py-2"
+            />
+          </label>
+          {error && (
+            <p role="alert" className="text-sm text-red-600">
+              {error}
+            </p>
+          )}
+          <button
+            type="submit"
+            disabled={pending || draft.trim() === ''}
+            className="self-start rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {pending ? (started ? 'Thinking…' : 'Starting…') : started ? 'Send' : 'Start the interview'}
+          </button>
+        </form>
+      )}
 
       {started && (
         <p className="text-xs text-neutral-400">
           {phase === 'Defining'
             ? 'First, nailing down what the project actually is.'
-            : 'Now drilling into concrete steps.'}
+            : phase === 'Proposed'
+              ? 'Reviewing the proposed task list.'
+              : phase === 'Completed'
+                ? 'This Interview is wrapped up.'
+                : 'Now drilling into concrete steps.'}
         </p>
       )}
     </main>

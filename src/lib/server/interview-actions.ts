@@ -10,13 +10,15 @@
 // unit tests (the orchestrator, schema, and UI each carry them).
 import { createServerFn } from '@tanstack/react-start'
 import { getRequestHeaders } from '@tanstack/react-start/server'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq, max } from 'drizzle-orm'
 
 import { parseInterviewMessage } from '../interview-input.ts'
 import type { Phase } from '../phase.ts'
+import type { TaskEditInput, TaskPriority } from '../task-input.ts'
+import { parseTaskEdit, toTaskPriority } from '../task-input.ts'
 import { auth } from '../auth.ts'
 import { db } from './db/client.ts'
-import { interviewSessions, messages } from './db/schema/index.ts'
+import { interviewSessions, messages, tasks } from './db/schema/index.ts'
 import { runInterviewTurn } from './interview-turn.ts'
 import {
   createOpenRouterClient,
@@ -28,7 +30,9 @@ export interface InterviewTurnView {
   assistantReply: string
   phase: Phase
   projectSummary: string | null
+  projectTitle: string | null
   firedCheckpoint: boolean
+  firedBreakdown: boolean
 }
 
 type InterviewTurnResult =
@@ -103,6 +107,26 @@ async function runTurn(
             .update(interviewSessions)
             .set({ projectSummary })
             .where(eq(interviewSessions.id, id))
+        },
+        updateSessionTitle: async (id, projectTitle) => {
+          await db
+            .update(interviewSessions)
+            .set({ projectTitle })
+            .where(eq(interviewSessions.id, id))
+        },
+        saveProposedTasks: async (id, proposedTasks) => {
+          if (proposedTasks.length > 0) {
+            await db.insert(tasks).values(
+              proposedTasks.map((task) => ({
+                sessionId: id,
+                title: task.title,
+                description: task.description,
+                priority: task.priority,
+                dueString: task.dueString,
+                position: task.position,
+              })),
+            )
+          }
         },
       },
       sessionIdForTurn,
@@ -186,4 +210,228 @@ export const sendInterviewMessage = createServerFn({ method: 'POST' })
       return { ok: false, message: 'You need to log in to continue the Interview.' }
     }
     return runTurn(session.user.id, data.sessionId, data.message, false)
+  })
+
+// --- Task Breakdown review/edit (issue #25) -------------------------------
+//
+// The review table's server functions. Editing and viewing only touches
+// the local/persisted state — nothing here talks to Todoist yet; the
+// confirm step arrives with the `create_todoist_tasks` ticket. Same
+// shape as the actions above: auth via `auth.api`, ownership via
+// `ownedSessionId`, raw errors never cross the wire.
+
+export interface TaskRowView {
+  id: string
+  title: string
+  description: string | null
+  priority: TaskPriority
+  dueString: string | null
+  position: number
+}
+
+type TaskBreakdownResult =
+  | { ok: true; projectTitle: string | null; tasks: Array<TaskRowView> }
+  | { ok: false; message: string }
+
+export type TaskActionResult = { ok: true } | { ok: false; message: string }
+
+const TASK_FAILURE = 'Something went wrong saving that task. Try again.'
+
+// Loads the proposed breakdown for the review table: the cached project
+// title plus the tasks in the order they were proposed.
+export const getTaskBreakdown = createServerFn({ method: 'POST' })
+  .validator((input: unknown) => {
+    if (typeof input !== 'object' || input === null || typeof (input as { sessionId?: unknown }).sessionId !== 'string') {
+      throw new Error('Missing Interview reference.')
+    }
+    return { sessionId: (input as { sessionId: string }).sessionId }
+  })
+  .handler(async ({ data }): Promise<TaskBreakdownResult> => {
+    try {
+      const session = await auth.api.getSession({ headers: getRequestHeaders() })
+      if (!session) {
+        return { ok: false, message: 'You need to log in to review the task list.' }
+      }
+      const sessionId = await ownedSessionId(session.user.id, data.sessionId)
+      if (!sessionId) {
+        return { ok: false, message: 'That Interview could not be found.' }
+      }
+      const [sessionRow] = await db
+        .select({ projectTitle: interviewSessions.projectTitle })
+        .from(interviewSessions)
+        .where(eq(interviewSessions.id, sessionId))
+        .limit(1)
+      const rows = await db
+        .select({
+          id: tasks.id,
+          title: tasks.title,
+          description: tasks.description,
+          priority: tasks.priority,
+          dueString: tasks.dueString,
+          position: tasks.position,
+        })
+        .from(tasks)
+        .where(eq(tasks.sessionId, sessionId))
+        .orderBy(asc(tasks.position), asc(tasks.createdAt))
+      return {
+        ok: true,
+        projectTitle: sessionRow?.projectTitle ?? null,
+        tasks: rows.map((row) => ({
+          id: row.id,
+          title: row.title,
+          description: row.description,
+          priority: toTaskPriority(row.priority),
+          dueString: row.dueString,
+          position: row.position,
+        })),
+      }
+    } catch {
+      return { ok: false, message: TASK_FAILURE }
+    }
+  })
+
+// Shared validator for the table's add/edit payloads — the same parser
+// the client runs for instant feedback, re-run here (never trust the
+// wire).
+function parseTaskEditPayload(input: unknown): TaskEditInput {
+  const parsed = parseTaskEdit(input)
+  if (!parsed.ok) {
+    throw new Error(parsed.message)
+  }
+  return parsed.data
+}
+
+async function ownedTaskId(
+  userId: string,
+  sessionId: unknown,
+  taskId: unknown,
+): Promise<string | null> {
+  const ownedSession = await editableSessionId(userId, sessionId)
+  if (!ownedSession || typeof taskId !== 'string' || taskId.trim() === '') {
+    return null
+  }
+  const [row] = await db
+    .select({ id: tasks.id })
+    .from(tasks)
+    .where(and(eq(tasks.id, taskId), eq(tasks.sessionId, ownedSession)))
+    .limit(1)
+  return row?.id ?? null
+}
+
+// Editing the review table is part of the Proposed phase only (issue
+// #25): once the Session is Completed — `todoist_project_id` set, the
+// tasks already confirmed into Todoist — the list is frozen.
+async function editableSessionId(userId: string, sessionId: unknown): Promise<string | null> {
+  const ownedSession = await ownedSessionId(userId, sessionId)
+  if (!ownedSession) {
+    return null
+  }
+  const [row] = await db
+    .select({ todoistProjectId: interviewSessions.todoistProjectId })
+    .from(interviewSessions)
+    .where(eq(interviewSessions.id, ownedSession))
+    .limit(1)
+  if (row?.todoistProjectId != null) {
+    return null
+  }
+  return ownedSession
+}
+
+export const updateTaskInBreakdown = createServerFn({ method: 'POST' })
+  .validator((input: unknown) => {
+    const raw =
+      typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {}
+    const parsed = parseTaskEditPayload(raw)
+    if (typeof raw.sessionId !== 'string' || typeof raw.taskId !== 'string') {
+      throw new Error('Missing Interview or task reference.')
+    }
+    return { sessionId: raw.sessionId, taskId: raw.taskId, task: parsed }
+  })
+  .handler(async ({ data }): Promise<TaskActionResult> => {
+    try {
+      const session = await auth.api.getSession({ headers: getRequestHeaders() })
+      if (!session) {
+        return { ok: false, message: 'You need to log in to edit the task list.' }
+      }
+      const taskId = await ownedTaskId(session.user.id, data.sessionId, data.taskId)
+      if (!taskId) {
+        return { ok: false, message: 'That task could not be found.' }
+      }
+      await db
+        .update(tasks)
+        .set({
+          title: data.task.title,
+          description: data.task.description,
+          priority: data.task.priority,
+          dueString: data.task.dueString,
+        })
+        .where(eq(tasks.id, taskId))
+      return { ok: true }
+    } catch {
+      return { ok: false, message: TASK_FAILURE }
+    }
+  })
+
+export const addTaskToBreakdown = createServerFn({ method: 'POST' })
+  .validator((input: unknown) => {
+    const raw =
+      typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {}
+    const parsed = parseTaskEditPayload(raw)
+    if (typeof raw.sessionId !== 'string') {
+      throw new Error('Missing Interview reference.')
+    }
+    return { sessionId: raw.sessionId, task: parsed }
+  })
+  .handler(async ({ data }): Promise<TaskActionResult> => {
+    try {
+      const session = await auth.api.getSession({ headers: getRequestHeaders() })
+      if (!session) {
+        return { ok: false, message: 'You need to log in to edit the task list.' }
+      }
+      const sessionId = await editableSessionId(session.user.id, data.sessionId)
+      if (!sessionId) {
+        return { ok: false, message: 'That Interview could not be found.' }
+      }
+      const [row] = await db
+        .select({ maxPosition: max(tasks.position) })
+        .from(tasks)
+        .where(eq(tasks.sessionId, sessionId))
+      await db.insert(tasks).values({
+        sessionId,
+        title: data.task.title,
+        description: data.task.description,
+        priority: data.task.priority,
+        dueString: data.task.dueString,
+        position: (row?.maxPosition ?? -1) + 1,
+      })
+      return { ok: true }
+    } catch {
+      return { ok: false, message: TASK_FAILURE }
+    }
+  })
+
+export const removeTaskFromBreakdown = createServerFn({ method: 'POST' })
+  .validator((input: unknown) => {
+    const raw =
+      typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {}
+    if (typeof raw.sessionId !== 'string' || typeof raw.taskId !== 'string') {
+      throw new Error('Missing Interview or task reference.')
+    }
+    return { sessionId: raw.sessionId, taskId: raw.taskId }
+  })
+  .handler(async ({ data }): Promise<TaskActionResult> => {
+    try {
+      const session = await auth.api.getSession({ headers: getRequestHeaders() })
+      if (!session) {
+        return { ok: false, message: 'You need to log in to edit the task list.' }
+      }
+      const taskId = await ownedTaskId(session.user.id, data.sessionId, data.taskId)
+      if (!taskId) {
+        return { ok: false, message: 'That task could not be found.' }
+      }
+      await db.delete(tasks).where(eq(tasks.id, taskId))
+      return { ok: true }
+    } catch {
+      return { ok: false, message: TASK_FAILURE }
+    }
   })

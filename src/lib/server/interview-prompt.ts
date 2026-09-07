@@ -1,5 +1,6 @@
-// The Interview's single system prompt and the `mark_checkpoint` tool
-// definition (issue #24). Authored with the writing-for-agents skill:
+// The Interview's single system prompt and its two model-facing tool
+// definitions: `mark_checkpoint` (issue #24) and, added only after the
+// checkpoint has fired, `propose_task_breakdown` (issue #25). Authored with the writing-for-agents skill:
 // positive phrasing over negation, leading words the model recruits
 // priors for (vague, concrete, drill), one sharp completion criterion
 // for firing the tool — and no process jargon that could leak into
@@ -25,11 +26,13 @@ The tool takes project_summary: that single sentence, in the user's own framing.
 
 What happens after:
 
-Confirm your read in plain words — "Sounds like the project is: X" — and give the user the chance to correct you before moving on. Then keep interviewing with the same discipline, now drilling into concrete steps: what has to happen, in what order, how big each piece really is. One question at a time, until every step is small enough that "do it" is unambiguous.`
+Confirm your read in plain words — "Sounds like the project is: X" — and give the user the chance to correct you before moving on. Then keep interviewing with the same discipline, now drilling into concrete steps: what has to happen, in what order, how big each piece really is. One question at a time, until every step is small enough that "do it" is unambiguous.
+
+When every step is that small, you are done interviewing. Call the propose_task_breakdown tool once with the project title and the full list of tasks you settled on. After that, do not ask any more questions — one short reply telling the user their task list is ready to review, and nothing else. The user reviews and edits the list themselves, so make the tasks match what you heard, word for word where you can.`
 
 // One tool, available to the model from the first turn (issue #24).
 // `propose_task_breakdown` is added only after this has fired, which is
-// the mechanical guard settled in docs/plan.md §7 — not wired here yet.
+// the mechanical guard settled in docs/plan.md §7.
 export const MARK_CHECKPOINT_TOOL = {
   type: 'function',
   function: {
@@ -46,6 +49,59 @@ export const MARK_CHECKPOINT_TOOL = {
         },
       },
       required: ['project_summary'],
+      additionalProperties: false,
+    },
+  },
+} as const
+
+// The second tool, handed to the model only once mark_checkpoint has
+// fired (issue #25) — the orchestrator's tool swap is the mechanical
+// guard against a premature breakdown. Priority uses the friendly enum;
+// the mapping to Todoist's inverted integers happens later, at the
+// Todoist API boundary (plan.md §5).
+export const PROPOSE_TASK_BREAKDOWN_TOOL = {
+  type: 'function',
+  function: {
+    name: 'propose_task_breakdown',
+    description:
+      'Report that the interview has converged, by supplying the project title and the full list of concrete tasks you settled on. Call this exactly once per conversation, only after every step is small enough that "do it" is unambiguous.',
+    parameters: {
+      type: 'object',
+      properties: {
+        project_title: {
+          type: 'string',
+          description: 'The project’s name, in the user’s own framing.',
+        },
+        tasks: {
+          type: 'array',
+          description: 'Every task the project needs, in the order the user settled on.',
+          items: {
+            type: 'object',
+            properties: {
+              title: {
+                type: 'string',
+                description: 'One concrete task, small enough that "do it" is unambiguous.',
+              },
+              description: {
+                type: 'string',
+                description: 'A short note on what the task involves, if one is needed.',
+              },
+              priority: {
+                type: 'string',
+                enum: ['normal', 'medium', 'high', 'urgent'],
+                description: 'How urgent the task is. Leave it out for a normal task.',
+              },
+              due_string: {
+                type: 'string',
+                description: 'When the task is due, in the user’s own words, like "this weekend".',
+              },
+            },
+            required: ['title'],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ['project_title', 'tasks'],
       additionalProperties: false,
     },
   },
