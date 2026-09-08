@@ -75,11 +75,31 @@ uppercase/tracked treatment layered on top).
 
 ## Capture
 
-Pending — this hasn't been reviewed yet. Once the pair reacts and settles on
-it (per issue #62), record the verdict here: what changed from this first
-pass, anything stolen from a rejected direction, and where the validated
-tokens/shell land in `dev` (`src/styles.css` token values, the shadcn install
-itself, and a real nav-shell component built from
-`src/routes/prototype.style-tile.tsx`'s `NavShellDemo`). The full prototype
-route stays on this branch, out of `dev`, per the prototype skill's cleanup
-step.
+**Verdict**: accepted as-is (2026-09-08) — the token set, shadcn/ui component
+picks, and nav shell mechanism (permanent sidebar ≥`lg`, hamburger + `Sheet`
+drawer below) all stand as built, no changes requested. See issue #62's
+resolution comment and map #60's Decisions so far.
+
+**One correction on scope, not on the tokens**: what's accepted is the
+*mechanism*, not this demo's nav *content*. The `NavShellDemo` nav (Home / My
+todos / Chat history) was built to match mockup-2's sidebar pixel-for-pixel,
+before checking map #60 — which had already, in an earlier paired session,
+decided to drop "My todos" and make Settings a persistent top-bar icon rather
+than a nav row. Neither of those made it into the demo. Whoever builds the
+real shell should follow map #60's nav-content decisions, not this file's.
+
+**Still open** (unresolved by the "as-is" acceptance, carried to map #60):
+dark mode (no mockup shows one — the scaffolded dark tokens are a guess, not
+derived) and primary-on-white contrast (visually close, unchecked against
+WCAG AA).
+
+**Landed as**: nothing yet on `dev` — this map-level prototype fed a decision
+into map #60, not a merge. The real code lands later, via whichever
+`/to-spec`/`/to-tickets` ticket builds the actual nav shell component;
+that ticket should treat `src/styles.css`'s token values here and the
+`components.json`/`src/components/ui/*` shadcn install as the reference to
+re-derive from (or literally carry over), and
+`src/routes/prototype.style-tile.tsx`'s `NavShellDemo` as the shell's
+starting shape — corrected for the nav-content drift above. The full
+prototype route/style-tile page itself stays on this branch, out of `dev`,
+per the prototype skill's cleanup step.
