@@ -59,16 +59,25 @@ export const getHistory = createServerFn({ method: 'GET' }).handler(async (): Pr
       .from(tasks)
       .where(inArray(tasks.sessionId, sessionIds))
       .groupBy(tasks.sessionId)
+    const toolNamesBySession = new Map<string, Array<string>>(
+      toolRows.map((toolRow) => [toolRow.sessionId, []]),
+    )
+    for (const toolRow of toolRows) {
+      if (toolRow.toolName !== null) {
+        toolNamesBySession.get(toolRow.sessionId)?.push(toolRow.toolName)
+      }
+    }
+    const taskCountsBySession = new Map(
+      countRows.map((countRow) => [countRow.sessionId, countRow.taskCount]),
+    )
     const raw: Array<RawSessionRow> = sessionRows.map((row) => ({
       sessionId: row.id,
       createdAt: row.createdAt,
       projectSummary: row.projectSummary,
       projectTitle: row.projectTitle,
       todoistProjectId: row.todoistProjectId,
-      toolNames: toolRows
-        .filter((toolRow) => toolRow.sessionId === row.id)
-        .flatMap((toolRow) => (toolRow.toolName === null ? [] : [toolRow.toolName])),
-      taskCount: countRows.find((countRow) => countRow.sessionId === row.id)?.taskCount ?? 0,
+      toolNames: toolNamesBySession.get(row.id) ?? [],
+      taskCount: taskCountsBySession.get(row.id) ?? 0,
     }))
     return { ok: true, sessions: buildHistoryRows(raw) }
   } catch {
@@ -94,21 +103,17 @@ export const getHistoryDetail = createServerFn({ method: 'POST' })
         return { ok: false, message: 'You need to log in to view your history.' }
       }
       const [owned] = await db
-        .select({ id: interviewSessions.id })
+        .select({
+          id: interviewSessions.id,
+          projectSummary: interviewSessions.projectSummary,
+          projectTitle: interviewSessions.projectTitle,
+        })
         .from(interviewSessions)
         .where(and(eq(interviewSessions.id, data.sessionId), eq(interviewSessions.userId, session.user.id)))
         .limit(1)
       if (!owned) {
         return { ok: false, message: 'That Interview could not be found.' }
       }
-      const [sessionRow] = await db
-        .select({
-          projectSummary: interviewSessions.projectSummary,
-          projectTitle: interviewSessions.projectTitle,
-        })
-        .from(interviewSessions)
-        .where(eq(interviewSessions.id, owned.id))
-        .limit(1)
       const messageRows = await db
         .select({ role: messages.role, content: messages.content })
         .from(messages)
@@ -125,13 +130,14 @@ export const getHistoryDetail = createServerFn({ method: 'POST' })
         .where(eq(tasks.sessionId, owned.id))
         .orderBy(asc(tasks.position), asc(tasks.createdAt))
       const detail: HistoryDetail = {
-        projectTitle: sessionRow?.projectTitle ?? null,
-        projectSummary: sessionRow?.projectSummary ?? null,
-        transcript: messageRows.flatMap((row) =>
-          row.role === 'user' || row.role === 'assistant'
-            ? [{ role: row.role, content: row.content ?? '' }]
-            : [],
-        ),
+        projectTitle: owned.projectTitle,
+        projectSummary: owned.projectSummary,
+        // The SQL filters to user/assistant rows already; the content
+        // null coalesce only covers an unexpectedly empty row.
+        transcript: messageRows.map((row) => ({
+          role: row.role as 'user' | 'assistant',
+          content: row.content ?? '',
+        })),
         tasks: taskRows.map((row) => ({
           title: row.title,
           description: row.description,

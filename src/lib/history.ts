@@ -19,6 +19,8 @@ export interface RawSessionRow {
   taskCount: number
 }
 
+// The history list row, shared by the server actions (which build it),
+// the route (which fetches it) and the component (which renders it).
 export interface HistorySessionRow {
   sessionId: string
   createdAt: Date

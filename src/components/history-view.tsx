@@ -16,16 +16,10 @@
 // clicking the row again is the retry (plan.md §10).
 import { useState, type MouseEvent } from 'react'
 
+import type { HistorySessionRow } from '../lib/history.ts'
 import type { Phase } from '../lib/phase.ts'
 
-export interface HistorySessionRow {
-  sessionId: string
-  createdAt: Date
-  phase: Phase
-  projectSummary: string | null
-  projectTitle: string | null
-  taskCount: number
-}
+export type { HistorySessionRow } from '../lib/history.ts'
 
 export interface HistoryTranscriptMessage {
   role: 'user' | 'assistant'
@@ -55,7 +49,7 @@ export interface HistoryViewProps {
   onOpenSession: (sessionId: string) => Promise<HistoryDetailResult>
 }
 
-const HISTORY_FAILURE = 'Something went wrong loading that interview. Try again.'
+const DETAIL_FAILURE = 'Something went wrong loading that interview. Try again.'
 
 function sessionLabel(session: HistorySessionRow): string {
   return session.projectTitle ?? session.projectSummary ?? 'Untitled interview'
@@ -112,7 +106,7 @@ export function HistoryView({ sessions, onOpenSession }: HistoryViewProps) {
       }
     } catch {
       setExpandedId(null)
-      setError(HISTORY_FAILURE)
+      setError(DETAIL_FAILURE)
     } finally {
       setLoadingId(null)
     }
