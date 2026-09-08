@@ -5,6 +5,10 @@
 // the action is pending. Navigation on success is the route's job.
 import { useState, type FormEvent } from 'react'
 
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+
 import {
   parseSignInCredentials,
   parseSignUpCredentials,
@@ -70,54 +74,43 @@ export function AuthForm({ mode, onSubmit }: AuthFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex w-full max-w-sm flex-col gap-4">
-      {mode === 'sign-up' && (
-        <label className="flex flex-col gap-1 text-sm">
-          Name
-          <input
-            name="name"
-            type="text"
-            autoComplete="name"
-            className="rounded-md border border-neutral-300 px-3 py-2"
-          />
-        </label>
-      )}
-      <label className="flex flex-col gap-1 text-sm">
-        Email
-        <input
-          name="email"
-          type="email"
-          autoComplete="email"
-          className="rounded-md border border-neutral-300 px-3 py-2"
-        />
-      </label>
-      <label className="flex flex-col gap-1 text-sm">
-        Password
-        <input
-          name="password"
-          type="password"
-          autoComplete={mode === 'sign-up' ? 'new-password' : 'current-password'}
-          className="rounded-md border border-neutral-300 px-3 py-2"
-        />
-      </label>
-      {error && (
-        <p role="alert" className="text-sm text-red-600">
-          {error}
-        </p>
-      )}
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-      >
-        {mode === 'sign-up'
-          ? pending
-            ? 'Creating account…'
-            : 'Sign up'
-          : pending
-            ? 'Logging in…'
-            : 'Log in'}
-      </button>
-    </form>
+    <Card className="w-full max-w-sm">
+      <CardContent>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          {mode === 'sign-up' && (
+            <label className="flex flex-col gap-1.5 text-sm font-medium">
+              Name
+              <Input name="name" type="text" autoComplete="name" />
+            </label>
+          )}
+          <label className="flex flex-col gap-1.5 text-sm font-medium">
+            Email
+            <Input name="email" type="email" autoComplete="email" />
+          </label>
+          <label className="flex flex-col gap-1.5 text-sm font-medium">
+            Password
+            <Input
+              name="password"
+              type="password"
+              autoComplete={mode === 'sign-up' ? 'new-password' : 'current-password'}
+            />
+          </label>
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+          <Button type="submit" disabled={pending} className="rounded-full">
+            {mode === 'sign-up'
+              ? pending
+                ? 'Creating account…'
+                : 'Sign up'
+              : pending
+                ? 'Logging in…'
+                : 'Log in'}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   )
 }

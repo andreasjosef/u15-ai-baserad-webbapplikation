@@ -4,6 +4,8 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 
+import { Button } from '@/components/ui/button'
+
 import type { AuthResult } from '../lib/auth-result.ts'
 import { requireAuthSession } from '../lib/require-auth-session.ts'
 import { signOut } from '../lib/server/auth-actions.ts'
@@ -54,49 +56,48 @@ export function HomePage({
 }) {
   const [error, setError] = useState<string | null>(null)
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-4 text-center">
-      <h1 className="text-5xl font-bold tracking-tight">Hone</h1>
-      <p className="max-w-md text-lg text-neutral-500">
-        Turn a vague idea into a concrete plan, one question at a time.
-      </p>
-      <button
-        type="button"
-        onClick={onStartInterview}
-        className="rounded-md bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-700"
-      >
-        Start an interview
-      </button>
-      <button
-        type="button"
-        onClick={onOpenHistory}
-        className="rounded-md border border-neutral-300 px-6 py-3 text-sm font-medium hover:bg-neutral-100"
-      >
-        View history
-      </button>
-      <p className="text-sm text-neutral-600">
+    <main className="flex min-h-screen flex-col items-center justify-center gap-6 px-4 text-center">
+      <div className="space-y-2">
+        <h1 className="font-heading text-5xl font-normal tracking-[0.2em] uppercase">Hone</h1>
+        <p className="max-w-md text-lg text-muted-foreground">
+          Turn a vague idea into a concrete plan, one question at a time.
+        </p>
+      </div>
+      <div className="flex flex-col items-center gap-3">
+        <Button type="button" size="lg" onClick={onStartInterview} className="rounded-full px-8">
+          Start an interview
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onOpenHistory}
+          className="rounded-full px-6"
+        >
+          View history
+        </Button>
+      </div>
+      <p className="text-sm text-muted-foreground">
         Signed in as {user.name} ({user.email})
       </p>
-      <button
-        type="button"
-        onClick={async () => {
-          const result = await onLogOut()
-          if (!result.ok) {
-            setError(result.message)
-          }
-        }}
-        className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium hover:bg-neutral-100"
-      >
-        Log out
-      </button>
-      <button
-        type="button"
-        onClick={onOpenSettings}
-        className="text-sm text-neutral-600 underline hover:text-neutral-900"
-      >
-        Account settings
-      </button>
+      <div className="flex items-center gap-4">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={async () => {
+            const result = await onLogOut()
+            if (!result.ok) {
+              setError(result.message)
+            }
+          }}
+        >
+          Log out
+        </Button>
+        <Button type="button" variant="link" onClick={onOpenSettings}>
+          Account settings
+        </Button>
+      </div>
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-destructive">
           {error}
         </p>
       )}
