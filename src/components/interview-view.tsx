@@ -3,12 +3,15 @@
 // onSubmit, so the tests drive the whole conversation without a router,
 // db, or network. The Checkpoint is never a screen of its own: once the
 // summary exists it shows as a small persistent read-back hint
-// (CONTEXT.md's Checkpoint entry).
+// (CONTEXT.md's Checkpoint entry). The Proposed-phase review table and
+// the Completed wrapped-up state are delegated to TaskBreakdown
+// (issue #54), which receives the answer form as its fallback children.
 import { useState, type FormEvent } from 'react'
 
 import type { Phase } from '../lib/phase.ts'
 import type { TaskEditInput } from '../lib/task-input.ts'
-import { TaskReview, type TaskActionResult, type TaskRow } from './task-review.tsx'
+import type { TaskActionResult, TaskRow } from './task-review.tsx'
+import { TaskBreakdown } from './task-breakdown.tsx'
 
 export interface InterviewMessage {
   role: 'user' | 'assistant'
@@ -59,14 +62,6 @@ export function InterviewView({
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
   const started = messages.length > 0
-  const completed = phase === 'Completed'
-  const reviewing =
-    phase === 'Proposed' &&
-    projectTitle !== null &&
-    tasks !== undefined &&
-    onUpdateTask !== undefined &&
-    onAddTask !== undefined &&
-    onRemoveTask !== undefined
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -120,26 +115,16 @@ export function InterviewView({
         </ol>
       )}
 
-      {completed && (
-        <p
-          role="status"
-          className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700"
-        >
-          Your tasks are in Todoist — this Interview is wrapped up.
-        </p>
-      )}
-
-      {reviewing ? (
-        <TaskReview
-          projectTitle={projectTitle}
-          tasks={tasks}
-          pending={pending}
-          onUpdateTask={onUpdateTask}
-          onAddTask={onAddTask}
-          onRemoveTask={onRemoveTask}
-          onConfirmTask={onConfirmTask}
-        />
-      ) : completed ? null : (
+      <TaskBreakdown
+        phase={phase}
+        projectTitle={projectTitle}
+        tasks={tasks}
+        pending={pending}
+        onUpdateTask={onUpdateTask}
+        onAddTask={onAddTask}
+        onRemoveTask={onRemoveTask}
+        onConfirmTask={onConfirmTask}
+      >
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <label className="flex flex-col gap-1 text-sm">
             {started ? 'Your answer' : 'Your vague idea'}
@@ -168,7 +153,7 @@ export function InterviewView({
             {pending ? (started ? 'Thinking…' : 'Starting…') : started ? 'Send' : 'Start the interview'}
           </button>
         </form>
-      )}
+      </TaskBreakdown>
 
       {started && (
         <p className="text-xs text-neutral-400">
