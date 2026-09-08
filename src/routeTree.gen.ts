@@ -16,6 +16,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as InterviewSessionIdRouteImport } from './routes/interview_.$sessionId'
+import { Route as PrototypeStyleTileRouteImport } from './routes/prototype.style-tile'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -53,6 +54,11 @@ const InterviewSessionIdRoute = InterviewSessionIdRouteImport.update({
   path: '/interview/$sessionId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrototypeStyleTileRoute = PrototypeStyleTileRouteImport.update({
+  id: '/prototype/style-tile',
+  path: '/prototype/style-tile',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -67,6 +73,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/interview/$sessionId': typeof InterviewSessionIdRoute
+  '/prototype/style-tile': typeof PrototypeStyleTileRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
@@ -77,6 +84,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/interview/$sessionId': typeof InterviewSessionIdRoute
+  '/prototype/style-tile': typeof PrototypeStyleTileRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
@@ -88,6 +96,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/interview_/$sessionId': typeof InterviewSessionIdRoute
+  '/prototype/style-tile': typeof PrototypeStyleTileRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
@@ -100,6 +109,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signup'
     | '/interview/$sessionId'
+    | '/prototype/style-tile'
     | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -110,6 +120,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signup'
     | '/interview/$sessionId'
+    | '/prototype/style-tile'
     | '/api/auth/$'
   id:
     | '__root__'
@@ -120,6 +131,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signup'
     | '/interview_/$sessionId'
+    | '/prototype/style-tile'
     | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
@@ -131,6 +143,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   SignupRoute: typeof SignupRoute
   InterviewSessionIdRoute: typeof InterviewSessionIdRoute
+  PrototypeStyleTileRoute: typeof PrototypeStyleTileRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -185,6 +198,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InterviewSessionIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/prototype/style-tile': {
+      id: '/prototype/style-tile'
+      path: '/prototype/style-tile'
+      fullPath: '/prototype/style-tile'
+      preLoaderRoute: typeof PrototypeStyleTileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -203,6 +223,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   SignupRoute: SignupRoute,
   InterviewSessionIdRoute: InterviewSessionIdRoute,
+  PrototypeStyleTileRoute: PrototypeStyleTileRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport
