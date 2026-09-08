@@ -7,15 +7,17 @@ const user = { name: 'Test User', email: 'person@example.com' }
 function renderHomePage(onLogOut = async () => ({ ok: true }) as const) {
   const onOpenSettings = vi.fn()
   const onStartInterview = vi.fn()
+  const onOpenHistory = vi.fn()
   render(
     <HomePage
       user={user}
       onLogOut={onLogOut}
+      onOpenHistory={onOpenHistory}
       onOpenSettings={onOpenSettings}
       onStartInterview={onStartInterview}
     />,
   )
-  return { onOpenSettings, onStartInterview }
+  return { onOpenSettings, onStartInterview, onOpenHistory }
 }
 
 describe('HomePage', () => {
@@ -33,6 +35,13 @@ describe('HomePage', () => {
     expect(onStartInterview).toHaveBeenCalledTimes(1)
   })
 
+  it('offers a way to open the history view', () => {
+    const { onOpenHistory } = renderHomePage()
+
+    fireEvent.click(screen.getByRole('button', { name: 'View history' }))
+    expect(onOpenHistory).toHaveBeenCalledTimes(1)
+  })
+
   it('offers a way to open account settings', () => {
     const { onOpenSettings } = renderHomePage()
 
@@ -42,7 +51,7 @@ describe('HomePage', () => {
 
   it('shows who is signed in and offers a log out action', async () => {
     const onLogOut = vi.fn(async () => ({ ok: true }) as const)
-    render(<HomePage user={user} onLogOut={onLogOut} onOpenSettings={() => {}} onStartInterview={() => {}} />)
+    render(<HomePage user={user} onLogOut={onLogOut} onOpenHistory={() => {}} onOpenSettings={() => {}} onStartInterview={() => {}} />)
 
     expect(screen.getByText(/Signed in as Test User/)).toBeInTheDocument()
 
@@ -55,7 +64,7 @@ describe('HomePage', () => {
       ok: false,
       message: 'Something went wrong. Please try again.',
     }) as const)
-    render(<HomePage user={user} onLogOut={onLogOut} onOpenSettings={() => {}} onStartInterview={() => {}} />)
+    render(<HomePage user={user} onLogOut={onLogOut} onOpenHistory={() => {}} onOpenSettings={() => {}} onStartInterview={() => {}} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
 
