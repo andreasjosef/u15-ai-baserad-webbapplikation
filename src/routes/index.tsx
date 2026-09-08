@@ -24,6 +24,7 @@ function IndexPage() {
     <HomePage
       user={session.user}
       onStartInterview={() => navigate({ to: '/interview' })}
+      onOpenHistory={() => navigate({ to: '/history' })}
       onOpenSettings={() => navigate({ to: '/settings' })}
       onLogOut={async () => {
         const result = await signOut()
@@ -39,6 +40,7 @@ function IndexPage() {
 export function HomePage({
   user,
   onLogOut,
+  onOpenHistory,
   onOpenSettings,
   onStartInterview,
 }: {
@@ -46,6 +48,7 @@ export function HomePage({
   onLogOut: () => Promise<AuthResult>
   // Navigation arrives as a prop (like onLogOut) so this exported component
   // stays renderable outside a router context — its tests do exactly that.
+  onOpenHistory: () => void
   onOpenSettings: () => void
   onStartInterview: () => void
 }) {
@@ -62,6 +65,13 @@ export function HomePage({
         className="rounded-md bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-700"
       >
         Start an interview
+      </button>
+      <button
+        type="button"
+        onClick={onOpenHistory}
+        className="rounded-md border border-neutral-300 px-6 py-3 text-sm font-medium hover:bg-neutral-100"
+      >
+        View history
       </button>
       <p className="text-sm text-neutral-600">
         Signed in as {user.name} ({user.email})
