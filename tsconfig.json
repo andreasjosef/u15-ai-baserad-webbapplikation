@@ -12,6 +12,10 @@
     "verbatimModuleSyntax": true,
     "noEmit": true,
 
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+
     "skipLibCheck": true,
     "strict": true,
     "noUnusedLocals": true,
