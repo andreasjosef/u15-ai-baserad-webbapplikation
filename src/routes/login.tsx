@@ -14,7 +14,7 @@ function LoginPage() {
   const navigate = useNavigate()
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-6 px-4">
-      <h1 className="text-3xl font-bold tracking-tight">Log in to Hone</h1>
+      <h1 className="font-heading text-2xl font-semibold tracking-tight">Log in to Hone</h1>
       <AuthForm
         mode="log-in"
         onSubmit={async (data) => {
@@ -25,8 +25,11 @@ function LoginPage() {
           return result
         }}
       />
-      <p className="text-sm text-neutral-500">
-        New here? <Link to="/signup" className="underline">Sign up</Link>
+      <p className="text-sm text-muted-foreground">
+        New here?{' '}
+        <Link to="/signup" className="font-medium text-primary underline-offset-4 hover:underline">
+          Sign up
+        </Link>
       </p>
     </main>
   )
