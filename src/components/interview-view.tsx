@@ -3,15 +3,17 @@
 // onSubmit, so the tests drive the whole conversation without a router,
 // db, or network. The Checkpoint is never a screen of its own: once the
 // summary exists it shows as a small persistent read-back hint
-// (CONTEXT.md's Checkpoint entry). The Proposed-phase review table and
-// the Completed wrapped-up state are delegated to TaskBreakdown
-// (issue #54), which receives the answer form as its fallback children.
+// (CONTEXT.md's Checkpoint entry).
+//
+// This view only hosts the Defining and Drilling phases. The moment a
+// turn proposes a Task Breakdown (issue #56), the conversation route
+// navigates away to the review route (issue #55) — that navigation is
+// injected here as onBreakdownProposed, and this view stops rendering
+// (and its route stops fetching) the review table and wrapped-up state
+// entirely.
 import { useState, type FormEvent } from 'react'
 
 import type { Phase } from '../lib/phase.ts'
-import type { TaskEditInput } from '../lib/task-input.ts'
-import type { TaskActionResult, TaskRow } from './task-review.tsx'
-import { TaskBreakdown } from './task-breakdown.tsx'
 
 export interface InterviewMessage {
   role: 'user' | 'assistant'
@@ -19,27 +21,23 @@ export interface InterviewMessage {
 }
 
 // Discriminated union: a failure always carries its message, so a
-// failed submit can never render silently (plan.md §10).
-export type InterviewSubmitResult = { ok: true } | { ok: false; message: string }
+// failed submit can never render silently (plan.md §10). A success
+// carries whether that turn proposed a Task Breakdown, which is this
+// view's cue to hand off to the review route (issue #56).
+export type InterviewSubmitResult =
+  | { ok: true; breakdownProposed?: boolean }
+  | { ok: false; message: string }
 
 export interface InterviewViewProps {
   messages: ReadonlyArray<InterviewMessage>
   pending: boolean
   phase: Phase
   projectSummary: string | null
-  // Present once `propose_task_breakdown` has fired (issue #25): the
-  // Proposed phase swaps the conversation for the fully editable review
-  // table — the product's actual AI-mistake-catching mechanism — before
-  // anything is confirmed to Todoist.
-  projectTitle?: string | null
-  tasks?: ReadonlyArray<TaskRow>
-  onUpdateTask?: (taskId: string, task: TaskEditInput) => Promise<TaskActionResult>
-  onAddTask?: (task: TaskEditInput) => Promise<TaskActionResult>
-  onRemoveTask?: (taskId: string) => Promise<TaskActionResult>
-  // The confirm step (issue #26): fires create_todoist_tasks for the
-  // reviewed breakdown. On success the caller moves the Phase to
-  // Completed, which swaps this view to its wrapped-up state.
-  onConfirmTask?: () => Promise<TaskActionResult>
+  // Fired after a turn whose result indicates a Task Breakdown was
+  // proposed — the conversation route performs a real navigation to the
+  // review route (issue #55), addressed by the Session's id. This view
+  // holds no breakdown data of its own.
+  onBreakdownProposed: () => void
   // Returns ok:false with nothing rendered — the failure message is
   // shown by this component as a retryable alert, and the typed message
   // stays in the box (plan.md §10 — no silent failures).
@@ -51,12 +49,7 @@ export function InterviewView({
   pending,
   phase,
   projectSummary,
-  projectTitle = null,
-  tasks,
-  onUpdateTask,
-  onAddTask,
-  onRemoveTask,
-  onConfirmTask,
+  onBreakdownProposed,
   onSubmit,
 }: InterviewViewProps) {
   const [draft, setDraft] = useState('')
@@ -73,6 +66,9 @@ export function InterviewView({
     const result = await onSubmit(message)
     if (result.ok) {
       setDraft('')
+      if (result.breakdownProposed) {
+        onBreakdownProposed()
+      }
     } else {
       setError(result.message)
     }
@@ -115,55 +111,40 @@ export function InterviewView({
         </ol>
       )}
 
-      <TaskBreakdown
-        phase={phase}
-        projectTitle={projectTitle}
-        tasks={tasks}
-        pending={pending}
-        onUpdateTask={onUpdateTask}
-        onAddTask={onAddTask}
-        onRemoveTask={onRemoveTask}
-        onConfirmTask={onConfirmTask}
-      >
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <label className="flex flex-col gap-1 text-sm">
-            {started ? 'Your answer' : 'Your vague idea'}
-            <textarea
-              name="idea"
-              aria-label={started ? 'Your answer' : 'Your idea'}
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              rows={3}
-              placeholder={
-                started ? undefined : 'e.g. I should really sort out the garage…'
-              }
-              className="rounded-md border border-neutral-300 px-3 py-2"
-            />
-          </label>
-          {error && (
-            <p role="alert" className="text-sm text-red-600">
-              {error}
-            </p>
-          )}
-          <button
-            type="submit"
-            disabled={pending || draft.trim() === ''}
-            className="self-start rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {pending ? (started ? 'Thinking…' : 'Starting…') : started ? 'Send' : 'Start the interview'}
-          </button>
-        </form>
-      </TaskBreakdown>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+        <label className="flex flex-col gap-1 text-sm">
+          {started ? 'Your answer' : 'Your vague idea'}
+          <textarea
+            name="idea"
+            aria-label={started ? 'Your answer' : 'Your idea'}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            rows={3}
+            placeholder={
+              started ? undefined : 'e.g. I should really sort out the garage…'
+            }
+            className="rounded-md border border-neutral-300 px-3 py-2"
+          />
+        </label>
+        {error && (
+          <p role="alert" className="text-sm text-red-600">
+            {error}
+          </p>
+        )}
+        <button
+          type="submit"
+          disabled={pending || draft.trim() === ''}
+          className="self-start rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+        >
+          {pending ? (started ? 'Thinking…' : 'Starting…') : started ? 'Send' : 'Start the interview'}
+        </button>
+      </form>
 
       {started && (
         <p className="text-xs text-neutral-400">
           {phase === 'Defining'
             ? 'First, nailing down what the project actually is.'
-            : phase === 'Proposed'
-              ? 'Reviewing the proposed task list.'
-              : phase === 'Completed'
-                ? 'This Interview is wrapped up.'
-                : 'Now drilling into concrete steps.'}
+            : 'Now drilling into concrete steps.'}
         </p>
       )}
     </main>

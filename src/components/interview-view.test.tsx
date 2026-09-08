@@ -1,6 +1,8 @@
 // Tests for the Interview view (issue #24). The component is pure —
-// persistence and the model call arrive as an injected onSubmit, so the
-// whole conversation UI renders without a router, db, or network.
+// persistence and the model call arrive as an injected onSubmit, and the
+// hand-off to the review route (issue #56) arrives as an injected
+// onBreakdownProposed — so the whole conversation UI renders without a
+// router, db, or network.
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -12,6 +14,7 @@ const baseProps = {
   pending: false,
   phase: 'Defining' as Phase,
   projectSummary: null,
+  onBreakdownProposed: vi.fn(),
   onSubmit: vi.fn(),
 }
 
@@ -96,64 +99,59 @@ describe('InterviewView', () => {
     expect(screen.queryByRole('button', { name: /start/i })).not.toBeInTheDocument()
   })
 
-  it('renders the editable review table in the Proposed phase and retires the answer box', () => {
+  // --- Hand-off to the review route (issue #56) ---------------------------
+
+  it('navigates to the review route the instant a turn proposes a breakdown', async () => {
+    const onSubmit = vi.fn().mockResolvedValue({ ok: true, breakdownProposed: true })
+    const onBreakdownProposed = vi.fn()
     render(
       <InterviewView
         {...baseProps}
-        phase="Proposed"
-        projectSummary="Sort out the garage"
-        projectTitle="Garage cleanup"
-        tasks={[
-          { id: 't1', title: 'Clear out old boxes', description: null, priority: 'high', dueString: null },
+        messages={[
+          { role: 'user', content: 'idea' },
+          { role: 'assistant', content: 'question?' },
         ]}
-        onUpdateTask={vi.fn()}
-        onAddTask={vi.fn()}
-        onRemoveTask={vi.fn()}
+        onSubmit={onSubmit}
+        onBreakdownProposed={onBreakdownProposed}
       />,
     )
-    expect(screen.getByRole('heading', { name: /garage cleanup/i })).toBeInTheDocument()
-    expect(screen.getByRole('table')).toBeInTheDocument()
-    expect(screen.queryByLabelText(/idea/i)).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /send|start/i })).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText(/answer/i), { target: { value: 'that all sounds right' } })
+    fireEvent.click(screen.getByRole('button', { name: /send/i }))
+
+    await waitFor(() => expect(onBreakdownProposed).toHaveBeenCalledTimes(1))
   })
 
-  // --- Confirm to Todoist (issue #26) --------------------------------------
-
-  it('offers the confirm action on the review table and passes it through', async () => {
-    const onConfirmTask = vi.fn().mockResolvedValue({ ok: true })
+  it('does not navigate away on an ordinary turn that proposes nothing', async () => {
+    const onSubmit = vi.fn().mockResolvedValue({ ok: true })
+    const onBreakdownProposed = vi.fn()
     render(
       <InterviewView
         {...baseProps}
-        phase="Proposed"
-        projectSummary="Sort out the garage"
-        projectTitle="Garage cleanup"
-        tasks={[
-          { id: 't1', title: 'Clear out old boxes', description: null, priority: 'high', dueString: null },
-        ]}
-        onUpdateTask={vi.fn()}
-        onAddTask={vi.fn()}
-        onRemoveTask={vi.fn()}
-        onConfirmTask={onConfirmTask}
+        onSubmit={onSubmit}
+        onBreakdownProposed={onBreakdownProposed}
       />,
     )
-    fireEvent.click(screen.getByRole('button', { name: /todoist/i }))
+    fireEvent.change(screen.getByLabelText(/idea/i), { target: { value: 'sort out the garage' } })
+    fireEvent.click(screen.getByRole('button', { name: /start/i }))
 
-    await waitFor(() => expect(onConfirmTask).toHaveBeenCalledWith())
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled())
+    expect(onBreakdownProposed).not.toHaveBeenCalled()
   })
 
-  it('shows the wrapped-up state once Completed, with no form or confirm action', () => {
+  it('never renders a review table or wrapped-up state of its own', () => {
     render(
       <InterviewView
         {...baseProps}
-        phase="Completed"
+        phase="Drilling"
+        projectSummary="Sort out the garage"
         messages={[
           { role: 'user', content: 'idea' },
           { role: 'assistant', content: 'question?' },
         ]}
       />,
     )
-    expect(screen.getByText(/tasks are in todoist/i)).toBeInTheDocument()
-    expect(screen.queryByLabelText(/idea/i)).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /send|start/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    expect(screen.queryByText(/tasks are in todoist/i)).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/answer/i)).toBeInTheDocument()
   })
 })

@@ -4,35 +4,24 @@
 // transcript is kept in local state for the visit while the server
 // persists every turn to `messages`.
 //
-// Once `propose_task_breakdown` fires (issue #25), the Proposed phase
-// swaps the conversation for the editable review table. The proposed
-// rows are loaded from the server (they need their row ids), and every
-// edit is applied optimistically before its server call — a failure
-// reverts the row and surfaces the retryable message.
-//
-// Confirming the reviewed breakdown (issue #26) fires the direct
-// backend action `create_todoist_tasks` — the model never sees it. On
-// success the Phase moves to Completed (derived from
-// `interview_sessions.todoist_project_id` being set); a failure leaves
-// the table untouched, so confirming again is the retry.
-import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
+// This route hosts only the Defining and Drilling phases. The moment a
+// turn's result indicates `propose_task_breakdown` fired (issue #56),
+// it performs a real navigation to the review route (issue #55),
+// addressed by the Session's id — it no longer fetches or holds the
+// proposed breakdown's data, nor renders the review table or the
+// wrapped-up state. Its own URL stays id-less; Defining/Drilling and the
+// invisible Checkpoint are unaffected.
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { useRef, useState } from 'react'
 
 import { InterviewView, type InterviewMessage, type InterviewSubmitResult } from '../components/interview-view.tsx'
-import type { TaskActionResult, TaskRow } from '../components/task-review.tsx'
 import type { Phase } from '../lib/phase.ts'
 import { requireAuthSession } from '../lib/require-auth-session.ts'
-import type { TaskEditInput } from '../lib/task-input.ts'
 import {
-  addTaskToBreakdown,
-  getTaskBreakdown,
   INTERVIEW_FAILURE,
-  removeTaskFromBreakdown,
   sendInterviewMessage,
   startInterview,
-  updateTaskInBreakdown,
 } from '../lib/server/interview-actions.ts'
-import { confirmTaskBreakdown } from '../lib/server/todoist-creation-actions.ts'
 import { getSession } from '../lib/server/session.ts'
 
 export const Route = createFileRoute('/interview')({
@@ -43,26 +32,16 @@ export const Route = createFileRoute('/interview')({
 })
 
 function InterviewRoute() {
+  const navigate = useNavigate()
   const [sessionId, setSessionId] = useState<string | null>(null)
+  // The nav callback fires right after a turn resolves, before this
+  // component re-renders with the new session id — a ref carries the
+  // latest id to it without a stale-closure race.
+  const sessionIdRef = useRef<string | null>(null)
   const [messages, setMessages] = useState<Array<InterviewMessage>>([])
   const [phase, setPhase] = useState<Phase>('Defining')
   const [projectSummary, setProjectSummary] = useState<string | null>(null)
-  const [projectTitle, setProjectTitle] = useState<string | null>(null)
-  const [tasks, setTasks] = useState<Array<TaskRow>>([])
   const [pending, setPending] = useState(false)
-
-  // Returns the retryable failure message on error, null on success —
-  // a failed load must never silently strand the user in the chat view
-  // instead of the review table (plan.md §10).
-  async function loadBreakdown(sessionId: string): Promise<string | null> {
-    const breakdown = await getTaskBreakdown({ data: { sessionId } })
-    if (breakdown.ok) {
-      setProjectTitle(breakdown.projectTitle)
-      setTasks(breakdown.tasks)
-      return null
-    }
-    return breakdown.message
-  }
 
   async function handleSubmit(message: string): Promise<InterviewSubmitResult> {
     setPending(true)
@@ -74,103 +53,21 @@ function InterviewRoute() {
         return result
       }
       setSessionId(result.sessionId)
+      sessionIdRef.current = result.sessionId
       setPhase(result.phase)
       setProjectSummary(result.projectSummary)
-      setProjectTitle(result.projectTitle)
       setMessages((previous) => [
         ...previous,
         { role: 'user', content: message },
         { role: 'assistant', content: result.assistantReply },
       ])
-      // The proposed rows need their server-assigned ids for the table's
-      // per-row edits — fetch them as soon as the breakdown fires. The
-      // turn itself succeeded (messages/phase already updated), so a
-      // failed load surfaces as a retryable alert rather than silence.
-      if (result.firedBreakdown) {
-        const breakdownFailure = await loadBreakdown(result.sessionId)
-        if (breakdownFailure !== null) {
-          return { ok: false, message: breakdownFailure }
-        }
-      }
-      return { ok: true }
+      // A proposed breakdown hands the rest of the Interview to the
+      // review route — this route holds none of that data itself.
+      return { ok: true, breakdownProposed: result.firedBreakdown }
     } catch {
       return { ok: false, message: INTERVIEW_FAILURE }
     } finally {
       setPending(false)
-    }
-  }
-
-  async function handleUpdateTask(taskId: string, task: TaskEditInput): Promise<TaskActionResult> {
-    if (!sessionId) {
-      return { ok: false, message: INTERVIEW_FAILURE }
-    }
-    // Optimistic update; a failure re-syncs from the server rather than
-    // reverting to a possibly-stale snapshot.
-    setTasks((rows) =>
-      rows.map((row) => (row.id === taskId ? { ...row, ...task } : row)),
-    )
-    try {
-      const result = await updateTaskInBreakdown({ data: { sessionId, taskId, ...task } })
-      if (!result.ok) {
-        await loadBreakdown(sessionId)
-      }
-      return result
-    } catch {
-      await loadBreakdown(sessionId)
-      return { ok: false, message: INTERVIEW_FAILURE }
-    }
-  }
-
-  async function handleAddTask(task: TaskEditInput): Promise<TaskActionResult> {
-    if (!sessionId) {
-      return { ok: false, message: INTERVIEW_FAILURE }
-    }
-    try {
-      const result = await addTaskToBreakdown({ data: { sessionId, ...task } })
-      if (result.ok) {
-        // Re-fetch so the new row carries its server-assigned id.
-        await loadBreakdown(sessionId)
-      }
-      return result
-    } catch {
-      return { ok: false, message: INTERVIEW_FAILURE }
-    }
-  }
-
-  async function handleRemoveTask(taskId: string): Promise<TaskActionResult> {
-    if (!sessionId) {
-      return { ok: false, message: INTERVIEW_FAILURE }
-    }
-    // Optimistic removal; a failure re-syncs from the server.
-    setTasks((rows) => rows.filter((row) => row.id !== taskId))
-    try {
-      const result = await removeTaskFromBreakdown({ data: { sessionId, taskId } })
-      if (!result.ok) {
-        await loadBreakdown(sessionId)
-      }
-      return result
-    } catch {
-      await loadBreakdown(sessionId)
-      return { ok: false, message: INTERVIEW_FAILURE }
-    }
-  }
-
-  // Confirming the reviewed breakdown (issue #26): on success the Phase
-  // moves to Completed locally — the server's `todoist_project_id` write
-  // is the durable source of that read. A failure returns the message;
-  // the table is untouched, so confirming again is the retry.
-  async function handleConfirmTask(): Promise<TaskActionResult> {
-    if (!sessionId) {
-      return { ok: false, message: INTERVIEW_FAILURE }
-    }
-    try {
-      const result = await confirmTaskBreakdown({ data: { sessionId } })
-      if (result.ok) {
-        setPhase('Completed')
-      }
-      return result
-    } catch {
-      return { ok: false, message: INTERVIEW_FAILURE }
     }
   }
 
@@ -180,12 +77,12 @@ function InterviewRoute() {
       pending={pending}
       phase={phase}
       projectSummary={projectSummary}
-      projectTitle={projectTitle}
-      tasks={tasks}
-      onUpdateTask={handleUpdateTask}
-      onAddTask={handleAddTask}
-      onRemoveTask={handleRemoveTask}
-      onConfirmTask={handleConfirmTask}
+      onBreakdownProposed={() => {
+        const id = sessionIdRef.current
+        if (id) {
+          void navigate({ to: '/interview/$sessionId', params: { sessionId: id } })
+        }
+      }}
       onSubmit={handleSubmit}
     />
   )
