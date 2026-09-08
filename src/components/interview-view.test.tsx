@@ -116,4 +116,44 @@ describe('InterviewView', () => {
     expect(screen.queryByLabelText(/idea/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /send|start/i })).not.toBeInTheDocument()
   })
+
+  // --- Confirm to Todoist (issue #26) --------------------------------------
+
+  it('offers the confirm action on the review table and passes it through', async () => {
+    const onConfirmTask = vi.fn().mockResolvedValue({ ok: true })
+    render(
+      <InterviewView
+        {...baseProps}
+        phase="Proposed"
+        projectSummary="Sort out the garage"
+        projectTitle="Garage cleanup"
+        tasks={[
+          { id: 't1', title: 'Clear out old boxes', description: null, priority: 'high', dueString: null },
+        ]}
+        onUpdateTask={vi.fn()}
+        onAddTask={vi.fn()}
+        onRemoveTask={vi.fn()}
+        onConfirmTask={onConfirmTask}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /todoist/i }))
+
+    await waitFor(() => expect(onConfirmTask).toHaveBeenCalledWith())
+  })
+
+  it('shows the wrapped-up state once Completed, with no form or confirm action', () => {
+    render(
+      <InterviewView
+        {...baseProps}
+        phase="Completed"
+        messages={[
+          { role: 'user', content: 'idea' },
+          { role: 'assistant', content: 'question?' },
+        ]}
+      />,
+    )
+    expect(screen.getByText(/tasks are in todoist/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/idea/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /send|start/i })).not.toBeInTheDocument()
+  })
 })
