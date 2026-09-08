@@ -1,3 +1,5 @@
+import { fileURLToPath, URL } from 'node:url'
+
 import { defineConfig } from 'vite'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
@@ -5,6 +7,14 @@ import tailwindcss from '@tailwindcss/vite'
 import { nitro } from 'nitro/vite'
 
 export default defineConfig({
+  resolve: {
+    // shadcn/ui generates components that import via `@/...` (e.g.
+    // `@/lib/utils`); this mirrors the same alias declared in
+    // tsconfig.json's `paths` so Vite resolves it identically at build time.
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
   // nitro() compiles the server routes into deployable Vercel Functions.
   // TanStack Start no longer bundles this itself (see "Why TanStack Start
   // is Ditching Adapters"), so without it the client build still succeeds
