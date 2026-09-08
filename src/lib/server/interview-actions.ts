@@ -10,10 +10,10 @@
 // unit tests (the orchestrator, schema, and UI each carry them).
 import { createServerFn } from '@tanstack/react-start'
 import { getRequestHeaders } from '@tanstack/react-start/server'
-import { and, asc, desc, eq, max } from 'drizzle-orm'
+import { and, asc, desc, eq, isNotNull, max } from 'drizzle-orm'
 
 import { parseInterviewMessage } from '../interview-input.ts'
-import type { Phase } from '../phase.ts'
+import { derivePhase, type Phase } from '../phase.ts'
 import type { TaskEditInput, TaskPriority } from '../task-input.ts'
 import { parseTaskEdit, toTaskPriority } from '../task-input.ts'
 import { auth } from '../auth.ts'
@@ -229,16 +229,20 @@ export interface TaskRowView {
   position: number
 }
 
-type TaskBreakdownResult =
-  | { ok: true; projectTitle: string | null; tasks: Array<TaskRowView> }
+export type TaskBreakdownResult =
+  | { ok: true; phase: Phase; projectTitle: string | null; tasks: Array<TaskRowView> }
   | { ok: false; message: string }
 
 export type TaskActionResult = { ok: true } | { ok: false; message: string }
 
 const TASK_FAILURE = 'Something went wrong saving that task. Try again.'
 
-// Loads the proposed breakdown for the review table: the cached project
-// title plus the tasks in the order they were proposed.
+// Loads the proposed breakdown for the review table: the derived Phase,
+// the cached project title, and the tasks in the order they were
+// proposed. The Phase rides along (derived from the same inputs the
+// History view uses — transcript tool rows plus `todoist_project_id`)
+// so callers can tell a reviewable Session from one that is still being
+// interviewed or has already been wrapped up.
 export const getTaskBreakdown = createServerFn({ method: 'POST' })
   .validator((input: unknown) => {
     if (typeof input !== 'object' || input === null || typeof (input as { sessionId?: unknown }).sessionId !== 'string') {
@@ -257,10 +261,17 @@ export const getTaskBreakdown = createServerFn({ method: 'POST' })
         return { ok: false, message: 'That Interview could not be found.' }
       }
       const [sessionRow] = await db
-        .select({ projectTitle: interviewSessions.projectTitle })
+        .select({
+          projectTitle: interviewSessions.projectTitle,
+          todoistProjectId: interviewSessions.todoistProjectId,
+        })
         .from(interviewSessions)
         .where(eq(interviewSessions.id, sessionId))
         .limit(1)
+      const toolRows = await db
+        .select({ toolName: messages.toolName })
+        .from(messages)
+        .where(and(eq(messages.sessionId, sessionId), isNotNull(messages.toolName)))
       const rows = await db
         .select({
           id: tasks.id,
@@ -275,6 +286,7 @@ export const getTaskBreakdown = createServerFn({ method: 'POST' })
         .orderBy(asc(tasks.position), asc(tasks.createdAt))
       return {
         ok: true,
+        phase: derivePhase(toolRows, sessionRow?.todoistProjectId ?? null),
         projectTitle: sessionRow?.projectTitle ?? null,
         tasks: rows.map((row) => ({
           id: row.id,
