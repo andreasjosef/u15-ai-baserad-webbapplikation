@@ -23,13 +23,13 @@ const baseProps = {
 } satisfies TaskBreakdownProps
 
 describe('TaskBreakdown', () => {
-  it('renders the editable review table in the Proposed phase', () => {
+  it('renders the editable review cards in the Proposed phase', () => {
     render(<TaskBreakdown {...baseProps} />)
     expect(screen.getByRole('heading', { name: /garage cleanup/i })).toBeInTheDocument()
-    expect(screen.getByRole('table')).toBeInTheDocument()
+    expect(screen.getByRole('list')).toBeInTheDocument()
   })
 
-  it('passes the editing callbacks through to the table', async () => {
+  it('passes the editing callbacks through to the cards', async () => {
     const onUpdateTask = vi.fn().mockResolvedValue({ ok: true })
     const onAddTask = vi.fn().mockResolvedValue({ ok: true })
     const onRemoveTask = vi.fn().mockResolvedValue({ ok: true })
@@ -83,19 +83,19 @@ describe('TaskBreakdown', () => {
         </TaskBreakdown>,
       )
       expect(screen.getByText('still chatting')).toBeInTheDocument()
-      expect(screen.queryByRole('table')).not.toBeInTheDocument()
+      expect(screen.queryByRole('list')).not.toBeInTheDocument()
       unmount()
     }
   })
 
-  it('renders the wrapped-up state once Completed, with no table or fallback', () => {
+  it('renders the wrapped-up state once Completed, with no cards or fallback', () => {
     render(
       <TaskBreakdown {...baseProps} phase="Completed">
         <p>never shown</p>
       </TaskBreakdown>,
     )
     expect(screen.getByText(/tasks are in todoist/i)).toBeInTheDocument()
-    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    expect(screen.queryByRole('list')).not.toBeInTheDocument()
     expect(screen.queryByText('never shown')).not.toBeInTheDocument()
   })
 
@@ -106,7 +106,7 @@ describe('TaskBreakdown', () => {
       </TaskBreakdown>,
     )
     expect(screen.getByText('the conversation continues here')).toBeInTheDocument()
-    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    expect(screen.queryByRole('list')).not.toBeInTheDocument()
     expect(screen.queryByText(/tasks are in todoist/i)).not.toBeInTheDocument()
   })
 
@@ -121,6 +121,6 @@ describe('TaskBreakdown', () => {
       </TaskBreakdown>,
     )
     expect(screen.getByText('still chatting')).toBeInTheDocument()
-    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    expect(screen.queryByRole('list')).not.toBeInTheDocument()
   })
 })

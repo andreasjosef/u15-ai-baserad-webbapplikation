@@ -1,19 +1,29 @@
-// The Task Breakdown review table (issue #25) — the product's actual
-// AI-mistake-catching mechanism (plan.md §8). Pure like the other form
-// components: persistence arrives as injected callbacks returning a
-// discriminated union, so the tests drive the whole editing flow
-// without a router, db, or network.
+// The Task Breakdown review cards (issues #25, #69) — the product's
+// actual AI-mistake-catching mechanism (plan.md §8). Pure like the other
+// form components: persistence arrives as injected callbacks returning a
+// discriminated union, so the tests drive the whole editing flow without
+// a router, db, or network.
 //
-// Fully editable before anything is confirmed: rename a task, change
-// its priority or due date, add a task, or remove a task. Confirming
+// Mockup 3's card treatment, one card per **task** (this component only
+// ever reviews one project at a time): a colored header band holding the
+// task title as a live input plus a remove control, and a plain
+// edit-form body — no checklist/checkbox iconography. A failure renders
+// as a retryable alert directly under the field that failed. Fully
+// editable before anything is confirmed: rename a task, change its
+// priority or due date, add a task, or remove a task. Confirming
 // (issue #26) fires the direct backend action `create_todoist_tasks`
 // via the injected onConfirmTask — never a model tool call — and a
-// failure leaves the table exactly as it was: confirming again is the
-// retry. Priority uses the friendly enum everywhere. Text edits commit
-// on blur (no server write per keystroke); the priority select commits
-// on change. A title cleared to empty commits nothing and snaps back —
-// the row always keeps a server-visible title.
+// failure leaves the cards exactly as they were: confirming again is
+// the retry. Priority uses the friendly enum everywhere. Text edits
+// commit on blur (no server write per keystroke); the priority select
+// commits on change. A title cleared to empty commits nothing and snaps
+// back — the card always keeps a server-visible title.
 import { useState, type ChangeEvent, type FocusEvent } from 'react'
+
+import { XIcon } from 'lucide-react'
+
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
 import type { TaskEditInput, TaskPriority } from '../lib/task-input.ts'
 import { TASK_PRIORITIES } from '../lib/task-input.ts'
@@ -38,7 +48,7 @@ export interface TaskReviewProps {
   onAddTask: (task: TaskEditInput) => Promise<TaskActionResult>
   onRemoveTask: (taskId: string) => Promise<TaskActionResult>
   // The confirm step (issue #26): fires create_todoist_tasks for the
-  // whole reviewed breakdown. Optional so the table stays testable
+  // whole reviewed breakdown. Optional so the cards stay testable
   // without it; a failure renders as the same retryable alert.
   onConfirmTask?: () => Promise<TaskActionResult>
 }
@@ -50,6 +60,42 @@ function cleared(value: string): string | null {
 }
 
 type DraftField = 'title' | 'description' | 'dueString'
+
+// Where a failure happened, so its alert renders under the field that
+// failed: `${taskId}:${field}`, the draft card, or the confirm button.
+interface Failure {
+  at: string
+  message: string
+}
+
+// The one shadcn token the shared Input doesn't cover: the native
+// priority <select>, styled to match it.
+const PRIORITY_SELECT_CLASS =
+  'h-8 rounded-lg border border-input bg-transparent px-2 py-1 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50'
+
+// The shared priority field, identical in every task card and the draft
+// card. The accessible name stays the aria-label it has always been.
+function PriorityField({
+  value,
+  onChange,
+}: {
+  value: TaskPriority
+  onChange: (event: ChangeEvent<HTMLSelectElement>) => void
+}) {
+  return (
+    <select aria-label="Priority" value={value} onChange={onChange} className={PRIORITY_SELECT_CLASS}>
+      {TASK_PRIORITIES.map((priority) => (
+        <option key={priority} value={priority}>
+          {priority}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+function FailureAlert({ message }: { message: string }) {
+  return <p role="alert" className="text-xs text-destructive">{message}</p>
+}
 
 export function TaskReview({
   projectTitle,
@@ -66,10 +112,10 @@ export function TaskReview({
     priority: 'normal' as TaskPriority,
     dueString: '',
   })
-  // Uncommitted text edits, keyed `${taskId}:${field}` — the row keeps
+  // Uncommitted text edits, keyed `${taskId}:${field}` — the card keeps
   // typing locally until blur, then one edit fires.
   const [edits, setEdits] = useState<Record<string, string>>({})
-  const [error, setError] = useState<string | null>(null)
+  const [failure, setFailure] = useState<Failure | null>(null)
 
   function editValue(task: TaskRow, field: DraftField): string {
     const key = `${task.id}:${field}`
@@ -85,7 +131,7 @@ export function TaskReview({
     setEdits((previous) => ({ ...previous, [key]: value }))
   }
 
-  // One commit per blur. An emptied title never fires — the row keeps
+  // One commit per blur. An emptied title never fires — the card keeps
   // its last committed title instead of persisting a broken row.
   function commitEdit(task: TaskRow, field: DraftField) {
     const key = `${task.id}:${field}`
@@ -100,8 +146,8 @@ export function TaskReview({
     if (field === 'title' && value.trim() === '') {
       return
     }
-    setError(null)
-    void commitUpdate(task, {
+    setFailure(null)
+    void commitUpdate(task, `${task.id}:${field}`, {
       title: field === 'title' ? value : task.title,
       description: field === 'description' ? cleared(value) : task.description,
       priority: task.priority,
@@ -109,20 +155,20 @@ export function TaskReview({
     })
   }
 
-  async function commitUpdate(task: TaskRow, next: TaskEditInput) {
+  async function commitUpdate(task: TaskRow, at: string, next: TaskEditInput) {
     try {
       const result = await onUpdateTask(task.id, next)
       if (!result.ok) {
-        setError(result.message)
+        setFailure({ at, message: result.message })
       }
     } catch {
-      setError('Something went wrong saving that task. Try again.')
+      setFailure({ at, message: 'Something went wrong saving that task. Try again.' })
     }
   }
 
   function changePriority(task: TaskRow, event: ChangeEvent<HTMLSelectElement>) {
-    setError(null)
-    void commitUpdate(task, {
+    setFailure(null)
+    void commitUpdate(task, `${task.id}:priority`, {
       title: task.title,
       description: task.description,
       priority: event.target.value as TaskPriority,
@@ -131,14 +177,14 @@ export function TaskReview({
   }
 
   async function handleRemove(task: TaskRow) {
-    setError(null)
+    setFailure(null)
     try {
       const result = await onRemoveTask(task.id)
       if (!result.ok) {
-        setError(result.message)
+        setFailure({ at: `${task.id}:remove`, message: result.message })
       }
     } catch {
-      setError('Something went wrong saving that task. Try again.')
+      setFailure({ at: `${task.id}:remove`, message: 'Something went wrong saving that task. Try again.' })
     }
   }
 
@@ -150,7 +196,7 @@ export function TaskReview({
     if (pending || draft.title.trim() === '') {
       return
     }
-    setError(null)
+    setFailure(null)
     try {
       const result = await onAddTask({
         title: draft.title,
@@ -161,10 +207,10 @@ export function TaskReview({
       if (result.ok) {
         setDraft({ title: '', description: '', priority: 'normal', dueString: '' })
       } else {
-        setError(result.message)
+        setFailure({ at: 'draft', message: result.message })
       }
     } catch {
-      setError('Something went wrong saving that task. Try again.')
+      setFailure({ at: 'draft', message: 'Something went wrong saving that task. Try again.' })
     }
   }
 
@@ -176,167 +222,142 @@ export function TaskReview({
   }
 
   // The confirm step (issue #26): one callback, no extra state — a
-  // failure leaves the table untouched and the button re-enabled, so
+  // failure leaves the cards untouched and the button re-enabled, so
   // confirming again is the retry.
   async function handleConfirm() {
     if (pending || onConfirmTask === undefined) {
       return
     }
-    setError(null)
+    setFailure(null)
     try {
       const result = await onConfirmTask()
       if (!result.ok) {
-        setError(result.message)
+        setFailure({ at: 'confirm', message: result.message })
       }
     } catch {
-      setError('Something went wrong creating your tasks in Todoist. Try again.')
+      setFailure({ at: 'confirm', message: 'Something went wrong creating your tasks in Todoist. Try again.' })
     }
   }
 
   return (
-    <section className="flex flex-col gap-3">
-      <h2 className="text-xl font-bold tracking-tight">{projectTitle}</h2>
-      <p className="text-sm text-neutral-500">
-        Your task list is ready — rename anything, set priorities and due dates, add or remove tasks.
-      </p>
-      {error && (
-        <p role="alert" className="text-sm text-red-600">
-          {error}
+    <section className="flex flex-col gap-4">
+      <header className="flex flex-col gap-1">
+        <h2 className="text-xl font-bold tracking-tight">{projectTitle}</h2>
+        <p className="text-sm text-muted-foreground">
+          Your task list is ready — rename anything, set priorities and due dates, add or remove tasks.
         </p>
-      )}
-      <table className="w-full text-sm">
-        <thead>
-          <tr>
-            <th scope="col" className="px-2 py-1 text-left font-medium">Title</th>
-            <th scope="col" className="px-2 py-1 text-left font-medium">Description</th>
-            <th scope="col" className="px-2 py-1 text-left font-medium">Priority</th>
-            <th scope="col" className="px-2 py-1 text-left font-medium">Due</th>
-            <th scope="col" className="px-2 py-1" aria-label="Actions" />
-          </tr>
-        </thead>
-        <tbody>
-          {tasks.map((task) => (
-            <tr key={task.id} aria-label={task.title} className="border-t border-neutral-200">
-              <td className="px-2 py-1">
-                <input
-                  aria-label="Title"
-                  value={editValue(task, 'title')}
-                  onChange={(event) => setEdit(task, 'title', event.target.value)}
-                  onBlur={blurCommit(task, 'title')}
-                  className="w-full rounded-md border border-neutral-300 px-2 py-1"
-                />
-              </td>
-              <td className="px-2 py-1">
-                <input
-                  aria-label="Description"
-                  value={editValue(task, 'description')}
-                  onChange={(event) => setEdit(task, 'description', event.target.value)}
-                  onBlur={blurCommit(task, 'description')}
-                  className="w-full rounded-md border border-neutral-300 px-2 py-1"
-                />
-              </td>
-              <td className="px-2 py-1">
-                <select
-                  aria-label="Priority"
-                  value={task.priority}
-                  onChange={(event) => changePriority(task, event)}
-                  className="rounded-md border border-neutral-300 px-2 py-1"
-                >
-                  {TASK_PRIORITIES.map((priority) => (
-                    <option key={priority} value={priority}>
-                      {priority}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td className="px-2 py-1">
-                <input
-                  aria-label="Due date"
-                  value={editValue(task, 'dueString')}
-                  onChange={(event) => setEdit(task, 'dueString', event.target.value)}
-                  onBlur={blurCommit(task, 'dueString')}
-                  placeholder="e.g. this weekend"
-                  className="w-full rounded-md border border-neutral-300 px-2 py-1"
-                />
-              </td>
-              <td className="px-2 py-1 text-right">
-                <button
-                  type="button"
-                  onClick={() => void handleRemove(task)}
-                  aria-label={`Remove task ${task.title}`}
-                  className="rounded-md border border-neutral-300 px-2 py-1 text-xs text-neutral-700 hover:bg-neutral-100"
-                >
-                  Remove
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr aria-label="Add a task" className="border-t border-neutral-200">
-            <td className="px-2 py-1">
+      </header>
+      <ul role="list" className="grid list-none grid-cols-1 gap-4 p-0 sm:grid-cols-2 xl:grid-cols-3">
+        {tasks.map((task) => (
+          <li
+            key={task.id}
+            aria-label={task.title}
+            className="flex flex-col overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10"
+          >
+            {/* Card header band: the live title input plus the remove
+                control, on the mockup's sampled purple (--primary). The
+                raw input (not the shared Input) keeps the band showing
+                through — the same field, restyled in place. */}
+            <div className="flex items-center gap-2 bg-primary px-3 py-2 text-primary-foreground">
               <input
                 aria-label="Title"
-                value={draft.title}
-                onChange={(event) => setDraft((previous) => ({ ...previous, title: event.target.value }))}
-                placeholder="New task"
-                className="w-full rounded-md border border-neutral-300 px-2 py-1"
+                value={editValue(task, 'title')}
+                onChange={(event) => setEdit(task, 'title', event.target.value)}
+                onBlur={blurCommit(task, 'title')}
+                className="min-w-0 flex-1 bg-transparent text-sm font-medium outline-none"
               />
-            </td>
-            <td className="px-2 py-1">
-              <input
-                aria-label="Description"
-                value={draft.description}
-                onChange={(event) => setDraft((previous) => ({ ...previous, description: event.target.value }))}
-                placeholder="Optional note"
-                className="w-full rounded-md border border-neutral-300 px-2 py-1"
-              />
-            </td>
-            <td className="px-2 py-1">
-              <select
-                aria-label="Priority"
-                value={draft.priority}
-                onChange={handleDraftPriority}
-                className="rounded-md border border-neutral-300 px-2 py-1"
-              >
-                {TASK_PRIORITIES.map((priority) => (
-                  <option key={priority} value={priority}>
-                    {priority}
-                  </option>
-                ))}
-              </select>
-            </td>
-            <td className="px-2 py-1">
-              <input
-                aria-label="Due date"
-                value={draft.dueString}
-                onChange={(event) => setDraft((previous) => ({ ...previous, dueString: event.target.value }))}
-                placeholder="e.g. tomorrow"
-                className="w-full rounded-md border border-neutral-300 px-2 py-1"
-              />
-            </td>
-            <td className="px-2 py-1 text-right">
-              <button
+              <Button
                 type="button"
-                onClick={() => void handleAdd()}
-                disabled={pending || draft.title.trim() === ''}
-                className="rounded-md bg-neutral-900 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+                variant="ghost"
+                size="icon-xs"
+                onClick={() => void handleRemove(task)}
+                aria-label={`Remove task ${task.title}`}
+                className="text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground"
               >
-                Add task
-              </button>
-            </td>
-          </tr>
-        </tfoot>
-      </table>
-      {onConfirmTask && (
-        <button
-          type="button"
-          onClick={() => void handleConfirm()}
-          disabled={pending}
-          className="self-start rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                <XIcon aria-hidden="true" />
+              </Button>
+            </div>
+            {/* Card body: a plain edit form — no checklist iconography.
+                Each failure alert renders directly under its field. */}
+            <div className="flex flex-col gap-3 p-3 text-sm">
+              {failure?.at === `${task.id}:title` && <FailureAlert message={failure.message} />}
+              <Input
+                aria-label="Description"
+                value={editValue(task, 'description')}
+                onChange={(event) => setEdit(task, 'description', event.target.value)}
+                onBlur={blurCommit(task, 'description')}
+                placeholder="Add a description…"
+              />
+              {failure?.at === `${task.id}:description` && <FailureAlert message={failure.message} />}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1">
+                  <PriorityField
+                    value={task.priority}
+                    onChange={(event) => changePriority(task, event)}
+                  />
+                  {failure?.at === `${task.id}:priority` && <FailureAlert message={failure.message} />}
+                </div>
+                <div className="flex flex-col gap-1">
+                  <Input
+                    aria-label="Due date"
+                    value={editValue(task, 'dueString')}
+                    onChange={(event) => setEdit(task, 'dueString', event.target.value)}
+                    onBlur={blurCommit(task, 'dueString')}
+                    placeholder="e.g. this weekend"
+                  />
+                  {failure?.at === `${task.id}:dueString` && <FailureAlert message={failure.message} />}
+                </div>
+              </div>
+              {failure?.at === `${task.id}:remove` && <FailureAlert message={failure.message} />}
+            </div>
+          </li>
+        ))}
+        {/* Trailing draft card, visually distinct from the real task
+            cards: dashed border, muted background, no purple header. */}
+        <li
+          aria-label="Add a task"
+          className="flex flex-col gap-3 rounded-xl border border-dashed border-border bg-muted/50 p-3"
         >
-          {pending ? 'Adding to Todoist…' : 'Add these tasks to Todoist'}
-        </button>
+          <Input
+            aria-label="Title"
+            value={draft.title}
+            onChange={(event) => setDraft((previous) => ({ ...previous, title: event.target.value }))}
+            placeholder="New task"
+          />
+          <Input
+            aria-label="Description"
+            value={draft.description}
+            onChange={(event) => setDraft((previous) => ({ ...previous, description: event.target.value }))}
+            placeholder="Optional note"
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <PriorityField value={draft.priority} onChange={handleDraftPriority} />
+            <Input
+              aria-label="Due date"
+              value={draft.dueString}
+              onChange={(event) => setDraft((previous) => ({ ...previous, dueString: event.target.value }))}
+              placeholder="e.g. tomorrow"
+            />
+          </div>
+          {failure?.at === 'draft' && <FailureAlert message={failure.message} />}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void handleAdd()}
+            disabled={pending || draft.title.trim() === ''}
+            className="self-start"
+          >
+            Add task
+          </Button>
+        </li>
+      </ul>
+      {onConfirmTask && (
+        <>
+          <Button type="button" onClick={() => void handleConfirm()} disabled={pending} className="self-start">
+            {pending ? 'Adding to Todoist…' : 'Add these tasks to Todoist'}
+          </Button>
+          {failure?.at === 'confirm' && <FailureAlert message={failure.message} />}
+        </>
       )}
     </section>
   )
