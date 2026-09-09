@@ -137,7 +137,7 @@ export function NavShell({
   }
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground">
+    <div className="flex h-dvh overflow-hidden bg-background text-foreground">
       {/* Permanent sidebar — lg and up. */}
       <aside className="hidden w-56 shrink-0 flex-col gap-8 border-r border-border bg-sidebar p-4 lg:flex">
         <Wordmark />
@@ -187,8 +187,12 @@ export function NavShell({
         </header>
 
         {/* The screen itself renders its own <main> — the shell adds no
-            second landmark. */}
-        <div className="flex-1">{children}</div>
+            second landmark. Height-bound shell (issue #86): this wrapper,
+            not the page, is what scrolls, so the sidebar and top bar stay
+            pinned while tall screens (Interview, History, Task Breakdown
+            review) scroll under them. `min-h-0` lets the flex child
+            actually shrink below its content height. */}
+        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
       </div>
     </div>
   )
