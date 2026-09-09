@@ -38,6 +38,22 @@ function openDrawer() {
 }
 
 describe('NavShell', () => {
+  // Issue #86: the shell is height-bound (`h-dvh`, not `min-h-screen`)
+  // so the whole page never grows — the content wrapper is what scrolls,
+  // keeping the sidebar and top bar pinned. Asserted via the container
+  // classes, since jsdom does no layout.
+  it('is height-bound: fixed shell with an internally scrolling content wrapper', () => {
+    renderShell()
+    const shell = screen.getByText('Screen content').closest('.h-dvh')
+    expect(shell).not.toBeNull()
+    expect(shell).toHaveClass('overflow-hidden')
+    expect(shell).not.toHaveClass('min-h-screen')
+
+    const wrapper = screen.getByText('Screen content').closest('.overflow-y-auto')
+    expect(wrapper).not.toBeNull()
+    expect(wrapper).toHaveClass('min-h-0', 'flex-1')
+  })
+
   it('renders the injected screen content', () => {
     renderShell()
     expect(screen.getByText('Screen content')).toBeInTheDocument()
