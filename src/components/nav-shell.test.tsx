@@ -80,6 +80,12 @@ describe('NavShell', () => {
     expect(openDrawer().queryByRole('button', { name: /settings/i })).not.toBeInTheDocument()
   })
 
+  it('shows the theme toggle in the top bar beside Settings (issue #83)', () => {
+    renderShell()
+    expect(screen.getByRole('switch')).toBeInTheDocument()
+    expect(sidebar().queryByRole('switch')).not.toBeInTheDocument()
+  })
+
   it('opens the drawer from a labeled trigger and closes it when a drawer row is picked', async () => {
     const { onNavigate } = renderShell()
 
