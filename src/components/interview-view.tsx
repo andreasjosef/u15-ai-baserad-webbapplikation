@@ -11,7 +11,20 @@
 // injected here as onBreakdownProposed, and this view stops rendering
 // (and its route stops fetching) the review table and wrapped-up state
 // entirely.
+//
+// Styling (issue #67): the conversation adopts the shared design tokens
+// and shadcn primitives, so it reads as part of the same product as the
+// rest of the nav shell. Conversation bubbles are the brand purple for the
+// interviewer and a plain outlined card for the user; the composer is a
+// rounded field with a circular send control; the Checkpoint hint is a
+// gently tinted note rather than a leftover unstyled box. Every prop,
+// callback, accessible name/role and keyboard path is unchanged from
+// before the restyle — only markup and class names moved.
 import { useState, type FormEvent } from 'react'
+
+import { ArrowUpIcon } from 'lucide-react'
+
+import { Button } from '@/components/ui/button'
 
 import type { Phase } from '../lib/phase.ts'
 
@@ -44,6 +57,19 @@ export interface InterviewViewProps {
   onSubmit: (message: string) => Promise<InterviewSubmitResult>
 }
 
+// Shared conversation-bubble shape — only the side, the squared corner,
+// and the fill tell the interviewer's turns apart from the user's.
+const BUBBLE_BASE_CLASS = 'max-w-[85%] rounded-2xl px-4 py-2 text-sm'
+const INTERVIEWER_BUBBLE_CLASS = `${BUBBLE_BASE_CLASS} self-start rounded-bl-sm bg-primary text-primary-foreground`
+const USER_BUBBLE_CLASS = `${BUBBLE_BASE_CLASS} self-end rounded-br-sm border border-border bg-card text-card-foreground`
+
+// The composer wrapper mirrors the focus treatment `ui/input.tsx` gives
+// the shared Input (border-ring plus a ring on focus) — expressed with
+// focus-within, since there is no shadcn Textarea primitive to compose
+// and this field is multi-line.
+const COMPOSER_CLASS =
+  'flex items-end gap-2 rounded-2xl border border-input bg-card p-1.5 transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50'
+
 export function InterviewView({
   messages,
   pending,
@@ -74,11 +100,22 @@ export function InterviewView({
     }
   }
 
+  // The submit control's accessible name is unchanged from before the
+  // restyle: it is only ever rendered as an icon now, so the label moves
+  // to aria-label verbatim.
+  const submitLabel = pending
+    ? started
+      ? 'Thinking…'
+      : 'Starting…'
+    : started
+      ? 'Send'
+      : 'Start the interview'
+
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-6 px-4 py-10">
+    <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-10">
       <header className="flex flex-col gap-1">
-        <h1 className="text-3xl font-bold tracking-tight">Hone</h1>
-        <p className="text-sm text-neutral-500">
+        <h1 className="font-heading text-3xl font-bold tracking-tight">Hone</h1>
+        <p className="text-sm text-muted-foreground">
           {started
             ? 'One question at a time — answer as loosely as you like.'
             : 'What is the idea you have been meaning to get to?'}
@@ -88,7 +125,7 @@ export function InterviewView({
       {projectSummary !== null && (
         <p
           role="status"
-          className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700"
+          className="rounded-xl bg-accent px-4 py-3 text-sm text-accent-foreground"
         >
           Sounds like the project is: {projectSummary} — let&apos;s break that into steps.
         </p>
@@ -100,9 +137,7 @@ export function InterviewView({
             <li
               key={index}
               className={
-                message.role === 'user'
-                  ? 'self-end rounded-lg bg-neutral-900 px-4 py-2 text-sm text-white'
-                  : 'self-start rounded-lg bg-neutral-100 px-4 py-2 text-sm text-neutral-900'
+                message.role === 'user' ? USER_BUBBLE_CLASS : INTERVIEWER_BUBBLE_CLASS
               }
             >
               {message.content}
@@ -111,10 +146,13 @@ export function InterviewView({
         </ol>
       )}
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-        <label className="flex flex-col gap-1 text-sm">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-2">
+        <label htmlFor="idea" className="text-sm font-medium">
           {started ? 'Your answer' : 'Your vague idea'}
+        </label>
+        <div className={COMPOSER_CLASS}>
           <textarea
+            id="idea"
             name="idea"
             aria-label={started ? 'Your answer' : 'Your idea'}
             value={draft}
@@ -123,25 +161,27 @@ export function InterviewView({
             placeholder={
               started ? undefined : 'e.g. I should really sort out the garage…'
             }
-            className="rounded-md border border-neutral-300 px-3 py-2"
+            className="max-h-48 min-h-16 flex-1 resize-none bg-transparent px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground"
           />
-        </label>
+          <Button
+            type="submit"
+            size="icon"
+            aria-label={submitLabel}
+            disabled={pending || draft.trim() === ''}
+            className="shrink-0 rounded-full"
+          >
+            <ArrowUpIcon aria-hidden="true" />
+          </Button>
+        </div>
         {error && (
-          <p role="alert" className="text-sm text-red-600">
+          <p role="alert" className="text-sm text-destructive">
             {error}
           </p>
         )}
-        <button
-          type="submit"
-          disabled={pending || draft.trim() === ''}
-          className="self-start rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-        >
-          {pending ? (started ? 'Thinking…' : 'Starting…') : started ? 'Send' : 'Start the interview'}
-        </button>
       </form>
 
       {started && (
-        <p className="text-xs text-neutral-400">
+        <p className="text-xs text-muted-foreground">
           {phase === 'Defining'
             ? 'First, nailing down what the project actually is.'
             : 'Now drilling into concrete steps.'}
