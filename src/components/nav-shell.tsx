@@ -8,7 +8,9 @@
 // navigation and the settings action arrive as injected callbacks, the
 // current section as a prop, and the screen itself as `children`. It does
 // no routing, data-fetching, or auth check of its own — the layout route
-// (src/routes/_shell.tsx) wires all of that in.
+// (src/routes/_shell.tsx) wires all of that in. There is no `docs/plan.md`
+// section for the shell; the nav content is fixed by issue #63 and the
+// "Interview" / "Task Breakdown" terms are as defined in `CONTEXT.md`.
 //
 // One genuinely responsive shell, not two components behind a manual
 // toggle: the sidebar is `hidden lg:flex`, the drawer trigger `lg:hidden`,
@@ -44,9 +46,14 @@ const NAV_ITEMS: ReadonlyArray<NavItem> = [
 ]
 
 // The "HONE" wordmark treatment from the mockups (issue #62): uppercase,
-// tracked, brand purple. Shared verbatim by the sidebar and the drawer.
+// tracked, brand purple. Shared verbatim by the sidebar, the drawer
+// title, and the small-screen top bar.
 const WORDMARK_CLASS =
   'font-heading text-lg font-bold tracking-[0.15em] text-primary uppercase'
+
+function Wordmark({ className }: { className?: string }) {
+  return <span className={`${WORDMARK_CLASS}${className ? ` ${className}` : ''}`}>Hone</span>
+}
 
 export interface NavShellProps {
   // The section currently on screen, for highlighting its row. Interview
@@ -90,6 +97,29 @@ function NavRow({
   )
 }
 
+// The same row set in the permanent sidebar and the drawer — only the
+// select handler differs (the drawer's also closes itself).
+function NavList({
+  currentItem,
+  onSelect,
+}: {
+  currentItem?: NavItemId
+  onSelect: (item: NavItemId) => void
+}) {
+  return (
+    <nav aria-label="Main" className="flex flex-col gap-1">
+      {NAV_ITEMS.map((item) => (
+        <NavRow
+          key={item.id}
+          item={item}
+          active={item.id === currentItem}
+          onSelect={() => onSelect(item.id)}
+        />
+      ))}
+    </nav>
+  )
+}
+
 export function NavShell({
   currentItem,
   onNavigate,
@@ -109,17 +139,8 @@ export function NavShell({
     <div className="flex min-h-screen bg-background text-foreground">
       {/* Permanent sidebar — lg and up. */}
       <aside className="hidden w-56 shrink-0 flex-col gap-8 border-r border-border bg-sidebar p-4 lg:flex">
-        <span className={WORDMARK_CLASS}>Hone</span>
-        <nav aria-label="Main" className="flex flex-col gap-1">
-          {NAV_ITEMS.map((item) => (
-            <NavRow
-              key={item.id}
-              item={item}
-              active={item.id === currentItem}
-              onSelect={() => onNavigate(item.id)}
-            />
-          ))}
-        </nav>
+        <Wordmark />
+        <NavList currentItem={currentItem} onSelect={onNavigate} />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -137,28 +158,18 @@ export function NavShell({
                 <MenuIcon aria-hidden="true" />
               </Button>
             </SheetTrigger>
-            <SheetContent
-              side="left"
-              className="w-64 gap-8 p-4"
-              aria-describedby={undefined}
-            >
+            {/* The drawer's accessible title is the wordmark (SheetTitle
+                below); it has no separate description, so the Radix
+                `aria-describedby` is explicitly cleared. */}
+            <SheetContent side="left" className="w-64 gap-8 p-4" aria-describedby={undefined}>
               <SheetHeader className="p-0">
                 <SheetTitle className={WORDMARK_CLASS}>Hone</SheetTitle>
               </SheetHeader>
-              <nav className="flex flex-col gap-1">
-                {NAV_ITEMS.map((item) => (
-                  <NavRow
-                    key={item.id}
-                    item={item}
-                    active={item.id === currentItem}
-                    onSelect={() => handleDrawerNavigate(item.id)}
-                  />
-                ))}
-              </nav>
+              <NavList currentItem={currentItem} onSelect={handleDrawerNavigate} />
             </SheetContent>
           </Sheet>
 
-          <span className={`lg:hidden ${WORDMARK_CLASS}`}>Hone</span>
+          <Wordmark className="lg:hidden" />
 
           <Button
             type="button"

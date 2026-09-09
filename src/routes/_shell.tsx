@@ -14,6 +14,14 @@ import { Outlet, createFileRoute, useLocation, useNavigate } from '@tanstack/rea
 
 import { NavShell, type NavItemId } from '../components/nav-shell.tsx'
 
+// Single source of truth for where each nav row goes. Typed as a total
+// `Record`, so adding a `NavItemId` without a destination is a compile
+// error rather than a silent fallthrough.
+const NAV_DESTINATIONS: Record<NavItemId, '/' | '/history'> = {
+  home: '/',
+  history: '/history',
+}
+
 export const Route = createFileRoute('/_shell')({
   component: ShellLayout,
 })
@@ -24,13 +32,14 @@ function ShellLayout() {
 
   // Only History is a nav destination that can be "current"; Interview
   // and the review screen highlight no row.
-  const currentItem: NavItemId | undefined = pathname === '/history' ? 'history' : undefined
+  const currentItem: NavItemId | undefined =
+    pathname === NAV_DESTINATIONS.history ? 'history' : undefined
 
   return (
     <NavShell
       currentItem={currentItem}
       onNavigate={(item) => {
-        void navigate({ to: item === 'home' ? '/' : '/history' })
+        void navigate({ to: NAV_DESTINATIONS[item] })
       }}
       onOpenSettings={() => {
         void navigate({ to: '/settings' })
