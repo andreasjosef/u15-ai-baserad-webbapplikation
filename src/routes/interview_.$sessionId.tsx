@@ -1,7 +1,9 @@
 // The Task Breakdown review route (issue #55), addressed by the
 // Interview Session's id and sibling to the conversation route —
 // reachable by direct link only (the conversation screen does not link
-// here yet). Fresh navigation, a refresh, or reopening the tab later
+// here yet). The trailing `_` in the filename is TanStack Router's
+// escape for "do not nest this under the `interview` route's layout":
+// the URL is still `/interview/<id>`, but it renders standalone. Fresh navigation, a refresh, or reopening the tab later
 // loads the proposed project title, tasks, and Phase straight from the
 // server through the same task-breakdown fetch the conversation screen
 // uses — nothing is carried over from the conversation.
