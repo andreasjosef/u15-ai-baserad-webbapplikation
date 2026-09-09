@@ -1,12 +1,12 @@
 // The Task Breakdown review UI as one self-contained, presentational
-// component (issue #54): the Proposed-phase editable review table and
-// the Completed wrapped-up confirmation state, extracted from the
+// component (issues #54, #69): the Proposed-phase editable review cards
+// and the Completed wrapped-up confirmation state, extracted from the
 // Interview conversation screen so another surface (the review route,
 // issue #53) can render them directly against server-loaded data.
 //
 // Pure like the other form components: the phase arrives as a prop and
-// persistence arrives as injected callbacks — the same shape the
-// existing review table already uses — so the tests drive the whole
+// persistence arrives as injected callbacks — the same shape the review
+// cards already use — so the tests drive the whole
 // flow without a router, db, or network. The fallback children render
 // only when there is nothing to review and the Interview isn't wrapped
 // up; the Interview screen passes its answer form here, so form
@@ -67,13 +67,16 @@ export function TaskBreakdown({
   }
 
   if (completed) {
+    // The wrapped-up confirmation (issue #69): the same card language as
+    // the review cards, so the end of the flow feels as polished as the
+    // rest of it.
     return (
-      <p
+      <div
         role="status"
-        className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700"
+        className="rounded-xl bg-card px-4 py-3 text-sm text-card-foreground ring-1 ring-foreground/10"
       >
         Your tasks are in Todoist — this Interview is wrapped up.
-      </p>
+      </div>
     )
   }
 

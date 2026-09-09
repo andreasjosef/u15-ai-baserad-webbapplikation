@@ -1,8 +1,11 @@
-// Tests for the Task Breakdown review table (issue #25). The component
-// is pure — persistence arrives as injected callbacks returning a
-// discriminated union, so the whole editing flow renders without a
+// Tests for the Task Breakdown review cards (issues #25, #69). The
+// component is pure — persistence arrives as injected callbacks returning
+// a discriminated union, so the whole editing flow renders without a
 // router, db, or network. Editing never touches Todoist: it only calls
 // back, and failures surface as retryable alerts (plan.md §10).
+//
+// One card per task in a role="list" grid (mockup 3's card treatment);
+// the add-task draft is a trailing visually-distinct listitem.
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -22,9 +25,13 @@ const baseProps = {
   onRemoveTask: vi.fn().mockResolvedValue({ ok: true }),
 }
 
-function rowFor(name: string | RegExp) {
-  const row = screen.getByRole('row', { name })
-  return within(row)
+function cardFor(name: string | RegExp) {
+  const card = screen.getByRole('listitem', { name })
+  return within(card)
+}
+
+function draftCard() {
+  return within(screen.getByRole('listitem', { name: /add a task/i }))
 }
 
 describe('TaskReview', () => {
@@ -32,12 +39,13 @@ describe('TaskReview', () => {
     vi.clearAllMocks()
   })
 
-  it('renders the project title and one editable row per task', () => {
+  it('renders the project title and one editable card per task', () => {
     render(<TaskReview {...baseProps} />)
     expect(screen.getByRole('heading', { name: /garage cleanup/i })).toBeInTheDocument()
-    expect(screen.getAllByRole('row')).toHaveLength(4) // header + 2 tasks + add row
+    expect(screen.getAllByRole('listitem')).toHaveLength(3) // 2 tasks + add card
+    expect(screen.getByRole('list')).toBeInTheDocument()
 
-    const first = rowFor(/clear out old boxes/i)
+    const first = cardFor(/clear out old boxes/i)
     expect((first.getByLabelText(/title/i) as HTMLInputElement).value).toBe('Clear out old boxes')
     expect((first.getByLabelText(/description/i) as HTMLInputElement).value).toBe('The green bags')
     expect((first.getByLabelText(/priority/i) as HTMLSelectElement).value).toBe('high')
@@ -46,7 +54,7 @@ describe('TaskReview', () => {
 
   it('renames a task on blur, through onUpdateTask with the full edited payload', async () => {
     render(<TaskReview {...baseProps} />)
-    const title = rowFor(/clear out old boxes/i).getByLabelText(/title/i)
+    const title = cardFor(/clear out old boxes/i).getByLabelText(/title/i)
     fireEvent.change(title, { target: { value: 'Empty the old boxes' } })
     expect(baseProps.onUpdateTask).not.toHaveBeenCalled()
     fireEvent.blur(title)
@@ -61,9 +69,9 @@ describe('TaskReview', () => {
     )
   })
 
-  it('never commits a title cleared to empty — the row keeps its last title', async () => {
+  it('never commits a title cleared to empty — the card keeps its last title', async () => {
     render(<TaskReview {...baseProps} />)
-    const title = rowFor(/clear out old boxes/i).getByLabelText(/title/i)
+    const title = cardFor(/clear out old boxes/i).getByLabelText(/title/i)
     fireEvent.change(title, { target: { value: '' } })
     fireEvent.blur(title)
 
@@ -75,7 +83,7 @@ describe('TaskReview', () => {
 
   it('changes a due date on blur, persisted as null when cleared', async () => {
     render(<TaskReview {...baseProps} />)
-    const due = rowFor(/clear out old boxes/i).getByLabelText(/due/i)
+    const due = cardFor(/clear out old boxes/i).getByLabelText(/due/i)
     fireEvent.change(due, { target: { value: '' } })
     fireEvent.blur(due)
 
@@ -91,7 +99,7 @@ describe('TaskReview', () => {
 
   it('changes a priority through onUpdateTask', async () => {
     render(<TaskReview {...baseProps} />)
-    const select = rowFor(/take donations/i).getByLabelText(/priority/i)
+    const select = cardFor(/take donations/i).getByLabelText(/priority/i)
     fireEvent.change(select, { target: { value: 'urgent' } })
 
     await waitFor(() =>
@@ -106,14 +114,14 @@ describe('TaskReview', () => {
 
   it('removes a task through onRemoveTask', async () => {
     render(<TaskReview {...baseProps} />)
-    fireEvent.click(rowFor(/clear out old boxes/i).getByRole('button', { name: /remove/i }))
+    fireEvent.click(cardFor(/clear out old boxes/i).getByRole('button', { name: /remove/i }))
 
     await waitFor(() => expect(baseProps.onRemoveTask).toHaveBeenCalledWith('t1'))
   })
 
   it('adds a drafted task through onAddTask and clears the draft', async () => {
     render(<TaskReview {...baseProps} />)
-    const draft = within(screen.getByRole('row', { name: /add a task/i }))
+    const draft = draftCard()
     fireEvent.change(draft.getByLabelText(/title/i), { target: { value: 'Sweep the floor' } })
     fireEvent.change(draft.getByLabelText(/description/i), { target: { value: 'After the boxes' } })
     fireEvent.change(draft.getByLabelText(/priority/i), { target: { value: 'medium' } })
@@ -136,21 +144,32 @@ describe('TaskReview', () => {
   it('shows a failed edit as a retryable alert', async () => {
     const onUpdateTask = vi.fn().mockResolvedValue({ ok: false, message: 'Something went wrong saving that task. Try again.' })
     render(<TaskReview {...baseProps} onUpdateTask={onUpdateTask} />)
-    const title = rowFor(/clear out old boxes/i).getByLabelText(/title/i)
+    const title = cardFor(/clear out old boxes/i).getByLabelText(/title/i)
     fireEvent.change(title, { target: { value: 'x' } })
     fireEvent.blur(title)
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/try again/i))
   })
 
-  it('shows a failed add as a retryable alert and keeps the draft', async () => {
+  it('renders a failed edit as an alert under the field that failed', async () => {
+    const onUpdateTask = vi.fn().mockResolvedValue({ ok: false, message: 'Something went wrong saving that task. Try again.' })
+    render(<TaskReview {...baseProps} onUpdateTask={onUpdateTask} />)
+    const due = cardFor(/clear out old boxes/i).getByLabelText(/due/i)
+    fireEvent.change(due, { target: { value: 'neveruary 41st' } })
+    fireEvent.blur(due)
+
+    await waitFor(() => expect(cardFor(/clear out old boxes/i).getByRole('alert')).toHaveTextContent(/try again/i))
+    expect(cardFor(/take donations/i).queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('shows a failed add as a retryable alert inside the draft card and keeps the draft', async () => {
     const onAddTask = vi.fn().mockResolvedValue({ ok: false, message: 'Something went wrong saving that task. Try again.' })
     render(<TaskReview {...baseProps} onAddTask={onAddTask} />)
-    const draft = within(screen.getByRole('row', { name: /add a task/i }))
+    const draft = draftCard()
     fireEvent.change(draft.getByLabelText(/title/i), { target: { value: 'Sweep the floor' } })
     fireEvent.click(draft.getByRole('button', { name: /add task/i }))
 
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/try again/i))
+    await waitFor(() => expect(draft.getByRole('alert')).toHaveTextContent(/try again/i))
     expect((draft.getByLabelText(/title/i) as HTMLInputElement).value).toBe('Sweep the floor')
   })
 
