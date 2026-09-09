@@ -38,7 +38,14 @@
 // placeholder bubble — an animated three-dot pill in the interviewer's
 // shape and fill — sits at the end of the message list where the reply
 // will land, covering both the "Starting…" and "Thinking…" states.
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+//
+// Composer (issue #90): the textarea starts at a single compact row and
+// grows with its content (height to scrollHeight on every draft change,
+// capped by max-h-48, scrolling internally past that), and Enter submits
+// the form exactly like the send button — through the same handleSubmit
+// guard — while Shift+Enter keeps its default newline. Enter that merely
+// confirms an IME composition never submits.
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 
 import { ArrowUpIcon } from 'lucide-react'
 
@@ -118,6 +125,7 @@ export function InterviewView({
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
   const started = messages.length > 0
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
   // Auto-scroll (issue #88): the scrollable region and whether the user
   // was near its bottom at the last scroll event. Seeded true so the
@@ -137,6 +145,38 @@ export function InterviewView({
       top: scrollRegionRef.current.scrollHeight,
     })
   }, [messageCount])
+
+  // Auto-grow (issue #90): re-fit the textarea's height to its content on
+  // every draft change — including the clear after a successful submit.
+  // Resetting to auto first lets scrollHeight report the content's real
+  // height; max-h-48 caps the growth and the textarea scrolls internally
+  // past it, min-h-9 keeps the collapsed field at least as tall as the
+  // send button beside it.
+  useEffect(() => {
+    const textarea = textareaRef.current
+    if (textarea === null) {
+      return
+    }
+    textarea.style.height = 'auto'
+    textarea.style.height = `${textarea.scrollHeight}px`
+  }, [draft])
+
+  // Enter-to-send (issue #90): Enter submits the form — requestSubmit
+  // lands in the same handleSubmit as the send button, so the
+  // pending/empty-draft guard is shared rather than duplicated.
+  // Shift+Enter falls through for its default newline, and so does an
+  // Enter that only confirms an IME composition (isComposing, with
+  // keyCode 229 as the legacy signal some IMEs emit instead).
+  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== 'Enter' || event.shiftKey) {
+      return
+    }
+    if (event.nativeEvent.isComposing || event.keyCode === 229) {
+      return
+    }
+    event.preventDefault()
+    event.currentTarget.form?.requestSubmit()
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -236,14 +276,16 @@ export function InterviewView({
             <textarea
               id="idea"
               name="idea"
+              ref={textareaRef}
               aria-label={started ? 'Your answer' : 'Your idea'}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              rows={3}
+              onKeyDown={handleKeyDown}
+              rows={1}
               placeholder={
                 started ? undefined : 'e.g. I should really sort out the garage…'
               }
-              className="max-h-48 min-h-16 flex-1 resize-none bg-transparent px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground"
+              className="max-h-48 min-h-9 flex-1 resize-none bg-transparent px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground"
             />
             <Button
               type="submit"
