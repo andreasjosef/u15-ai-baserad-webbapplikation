@@ -247,6 +247,63 @@ describe('InterviewView', () => {
     expect(screen.getByLabelText(/answer/i)).toBeInTheDocument()
   })
 
+  // --- Composer keyboard & auto-grow (issue #90) ---------------------------
+
+  // jsdom has no layout engine here either, so the growth is pinned the
+  // same way the auto-scroll tests pin the region: a scrollHeight
+  // override, with the inline height style as the observable.
+  it('starts at a single row and grows to fit its content', () => {
+    render(<InterviewView {...baseProps} />)
+    const textarea = screen.getByLabelText(/idea/i) as HTMLTextAreaElement
+    expect(textarea).toHaveAttribute('rows', '1')
+    Object.defineProperty(textarea, 'scrollHeight', { value: 96, configurable: true })
+    fireEvent.change(textarea, { target: { value: 'a much longer answer' } })
+    expect(textarea.style.height).toBe('96px')
+  })
+
+  it('submits on Enter without Shift, mirroring the click-based submit', async () => {
+    const onSubmit = vi.fn().mockResolvedValue({ ok: true })
+    render(<InterviewView {...baseProps} onSubmit={onSubmit} />)
+    const textarea = screen.getByLabelText(/idea/i)
+    fireEvent.change(textarea, { target: { value: 'I should sort out the garage' } })
+    fireEvent.keyDown(textarea, { key: 'Enter' })
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith('I should sort out the garage'))
+    await waitFor(() => expect(textarea).toHaveValue(''))
+  })
+
+  it('does not submit on an empty draft when Enter is pressed', () => {
+    const onSubmit = vi.fn()
+    render(<InterviewView {...baseProps} onSubmit={onSubmit} />)
+    fireEvent.keyDown(screen.getByLabelText(/idea/i), { key: 'Enter' })
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  it('does not submit on Shift+Enter, leaving the newline to the default behavior', () => {
+    const onSubmit = vi.fn()
+    render(<InterviewView {...baseProps} onSubmit={onSubmit} />)
+    const textarea = screen.getByLabelText(/idea/i)
+    fireEvent.change(textarea, { target: { value: 'I should sort out the garage' } })
+    fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: true })
+    expect(onSubmit).not.toHaveBeenCalled()
+
+    // The newline itself is default browser behavior (jsdom cannot
+    // perform it); the resulting draft must still not submit anything.
+    fireEvent.change(textarea, { target: { value: 'I should sort out the garage\n' } })
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(textarea).toHaveValue('I should sort out the garage\n')
+  })
+
+  it('does not submit when Enter confirms an IME composition', () => {
+    const onSubmit = vi.fn()
+    render(<InterviewView {...baseProps} onSubmit={onSubmit} />)
+    const textarea = screen.getByLabelText(/idea/i)
+    fireEvent.change(textarea, { target: { value: 'ガレージ' } })
+    fireEvent.keyDown(textarea, { key: 'Enter', isComposing: true })
+    fireEvent.keyDown(textarea, { key: 'Enter', keyCode: 229 })
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
   // --- Auto-scroll to the newest message (issue #88) -----------------------
 
   // jsdom has no layout engine, so the scroll region's metrics are
