@@ -23,6 +23,7 @@ import { useState, type ReactNode } from 'react'
 
 import { HistoryIcon, HomeIcon, MenuIcon, SettingsIcon } from 'lucide-react'
 
+import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -171,16 +172,18 @@ export function NavShell({
 
           <Wordmark className="lg:hidden" />
 
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={onOpenSettings}
-            aria-label="Settings"
-            className="ml-auto"
-          >
-            <SettingsIcon aria-hidden="true" />
-          </Button>
+          <div className="ml-auto flex items-center gap-2">
+            <ThemeToggle />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={onOpenSettings}
+              aria-label="Settings"
+            >
+              <SettingsIcon aria-hidden="true" />
+            </Button>
+          </div>
         </header>
 
         {/* The screen itself renders its own <main> — the shell adds no
