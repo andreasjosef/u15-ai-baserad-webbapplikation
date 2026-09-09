@@ -16,6 +16,8 @@
 // clicking the row again is the retry (plan.md §10).
 import { useState, type MouseEvent } from 'react'
 
+import { Button } from '@/components/ui/button'
+
 import type { HistorySessionRow } from '../lib/history.ts'
 import type { Phase } from '../lib/phase.ts'
 
@@ -65,11 +67,13 @@ function formatCreatedAt(createdAt: Date): string {
   return createdAt.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
+// Phase badges ramp on the token palette: muted for in-progress
+// phases, a primary tint for Proposed, solid primary for Completed.
 const PHASE_BADGE_STYLES: Record<Phase, string> = {
-  Defining: 'bg-neutral-100 text-neutral-600',
-  Drilling: 'bg-neutral-100 text-neutral-600',
-  Proposed: 'bg-neutral-800 text-white',
-  Completed: 'bg-neutral-900 text-white',
+  Defining: 'bg-muted text-muted-foreground',
+  Drilling: 'bg-muted text-muted-foreground',
+  Proposed: 'bg-primary/10 text-primary',
+  Completed: 'bg-primary text-primary-foreground',
 }
 
 type Tab = 'transcript' | 'breakdown'
@@ -129,7 +133,7 @@ export function HistoryView({ sessions, onOpenSession }: HistoryViewProps) {
         <header className="flex flex-col gap-1">
           <h1 className="text-3xl font-bold tracking-tight">History</h1>
         </header>
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-muted-foreground">
           No interviews yet — start one from the home page.
         </p>
       </main>
@@ -140,13 +144,13 @@ export function HistoryView({ sessions, onOpenSession }: HistoryViewProps) {
     <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-6 px-4 py-10">
       <header className="flex flex-col gap-1">
         <h1 className="text-3xl font-bold tracking-tight">History</h1>
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-muted-foreground">
           Your past interviews, newest first — read-only.
         </p>
       </header>
 
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-destructive">
           {error}
         </p>
       )}
@@ -159,7 +163,7 @@ export function HistoryView({ sessions, onOpenSession }: HistoryViewProps) {
             <li
               key={session.sessionId}
               aria-label={sessionLabel(session)}
-              className="rounded-md border border-neutral-200 hover:bg-neutral-50"
+              className="rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10 transition-colors hover:bg-muted/50"
               onClick={(event) => handleRowClick(session.sessionId, event)}
             >
               <button
@@ -175,42 +179,44 @@ export function HistoryView({ sessions, onOpenSession }: HistoryViewProps) {
                 >
                   {session.phase}
                 </span>
-                <span className="text-xs text-neutral-500">
+                <span className="text-xs text-muted-foreground">
                   {formatCreatedAt(session.createdAt)}
                 </span>
-                <span className="text-xs text-neutral-500">
+                <span className="text-xs text-muted-foreground">
                   {taskCountLabel(session.taskCount)}
                 </span>
               </button>
 
               {expanded && (
-                <div data-detail className="flex flex-col gap-3 border-t border-neutral-200 px-4 py-3">
+                <div data-detail className="flex flex-col gap-3 border-t border-border px-4 py-3">
                   {loadingId === session.sessionId && (
-                    <p role="status" className="text-sm text-neutral-500">
+                    <p role="status" className="text-sm text-muted-foreground">
                       Loading…
                     </p>
                   )}
                   {detail && (
                     <>
                       <div role="tablist" aria-label="Interview detail" className="flex gap-2">
-                        <button
+                        <Button
                           type="button"
                           role="tab"
                           aria-selected={tab === 'transcript'}
+                          variant={tab === 'transcript' ? 'default' : 'ghost'}
+                          size="sm"
                           onClick={() => setTab('transcript')}
-                          className={`rounded-md border border-neutral-300 px-3 py-1 text-sm ${tab === 'transcript' ? 'bg-neutral-900 text-white' : 'hover:bg-neutral-100'}`}
                         >
                           Transcript
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
                           role="tab"
                           aria-selected={tab === 'breakdown'}
+                          variant={tab === 'breakdown' ? 'default' : 'ghost'}
+                          size="sm"
                           onClick={() => setTab('breakdown')}
-                          className={`rounded-md border border-neutral-300 px-3 py-1 text-sm ${tab === 'breakdown' ? 'bg-neutral-900 text-white' : 'hover:bg-neutral-100'}`}
                         >
                           Task Breakdown
-                        </button>
+                        </Button>
                       </div>
 
                       {tab === 'transcript' ? (
@@ -220,8 +226,8 @@ export function HistoryView({ sessions, onOpenSession }: HistoryViewProps) {
                               key={index}
                               className={
                                 message.role === 'user'
-                                  ? 'self-end rounded-lg bg-neutral-900 px-3 py-1.5 text-sm text-white'
-                                  : 'self-start rounded-lg bg-neutral-100 px-3 py-1.5 text-sm text-neutral-900'
+                                  ? 'max-w-[80%] self-end rounded-2xl rounded-br-sm bg-primary px-3 py-1.5 text-sm text-primary-foreground'
+                                  : 'max-w-[80%] self-start rounded-2xl rounded-bl-sm bg-muted px-3 py-1.5 text-sm text-foreground'
                               }
                             >
                               {message.content}
@@ -238,15 +244,15 @@ export function HistoryView({ sessions, onOpenSession }: HistoryViewProps) {
                               <li key={index} className="text-sm">
                                 <span className="font-medium">{task.title}</span>
                                 {task.description !== null && (
-                                  <span className="text-neutral-500"> — {task.description}</span>
+                                  <span className="text-muted-foreground"> — {task.description}</span>
                                 )}
                                 {task.priority !== null && (
-                                  <span className="ml-2 rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600">
+                                  <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                                     {task.priority}
                                   </span>
                                 )}
                                 {task.dueString !== null && (
-                                  <span className="ml-2 text-xs text-neutral-500">Due {task.dueString}</span>
+                                  <span className="ml-2 text-xs text-muted-foreground">Due {task.dueString}</span>
                                 )}
                               </li>
                             ))}
