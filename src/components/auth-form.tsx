@@ -74,25 +74,26 @@ export function AuthForm({ mode, onSubmit }: AuthFormProps) {
   }
 
   return (
-    <Card className="w-full max-w-sm">
+    <Card className="w-full max-w-md rounded-lg shadow-sm ring-2 ring-border">
       <CardContent>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
           {mode === 'sign-up' && (
-            <label className="flex flex-col gap-1.5 text-sm font-medium">
+            <label className="flex flex-col gap-2 text-sm font-medium">
               Name
-              <Input name="name" type="text" autoComplete="name" />
+              <Input name="name" type="text" autoComplete="name" className="h-10 rounded-md" />
             </label>
           )}
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
+          <label className="flex flex-col gap-2 text-sm font-medium">
             Email
-            <Input name="email" type="email" autoComplete="email" />
+            <Input name="email" type="email" autoComplete="email" className="h-10 rounded-md" />
           </label>
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
+          <label className="flex flex-col gap-2 text-sm font-medium">
             Password
             <Input
               name="password"
               type="password"
               autoComplete={mode === 'sign-up' ? 'new-password' : 'current-password'}
+              className="h-10 rounded-md"
             />
           </label>
           {error && (
@@ -100,7 +101,11 @@ export function AuthForm({ mode, onSubmit }: AuthFormProps) {
               {error}
             </p>
           )}
-          <Button type="submit" disabled={pending} className="rounded-full">
+          <Button
+            type="submit"
+            disabled={pending}
+            className="h-11 w-full rounded-md border-2 border-foreground/10 font-semibold tracking-wide"
+          >
             {mode === 'sign-up'
               ? pending
                 ? 'Creating account…'
