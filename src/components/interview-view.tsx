@@ -27,12 +27,19 @@
 // Checkpoint hint, composer, retry alert, and phase footnote are pinned
 // in a footer outside the scrolling region. No prop, callback, accessible
 // name/role or keyboard path changed here either.
-import { useState, type FormEvent } from 'react'
+//
+// Auto-scroll (issue #88): a newly appended message pulls the scroll
+// region down only when the user was already reading at the bottom —
+// judged by isNearBottom on the last scroll event and remembered in a
+// ref, so the check happens before the new message renders. Someone
+// scrolled up to reread is never yanked back down.
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 
 import { ArrowUpIcon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 
+import { isNearBottom } from '../lib/scroll-near-bottom.ts'
 import type { Phase } from '../lib/phase.ts'
 
 export interface InterviewMessage {
@@ -100,6 +107,25 @@ export function InterviewView({
   const [error, setError] = useState<string | null>(null)
   const started = messages.length > 0
 
+  // Auto-scroll (issue #88): the scrollable region and whether the user
+  // was near its bottom at the last scroll event. Seeded true so the
+  // very first message (before any scroll event can have fired) pulls
+  // the conversation into view. Keyed on the message count, not the
+  // array itself — a parent rebuilding an unchanged list must not
+  // re-scroll (though opening an existing session does, which is wanted).
+  const scrollRegionRef = useRef<HTMLElement | null>(null)
+  const wasNearBottomRef = useRef(true)
+  const messageCount = messages.length
+
+  useEffect(() => {
+    if (!wasNearBottomRef.current) {
+      return
+    }
+    scrollRegionRef.current?.scrollTo({
+      top: scrollRegionRef.current.scrollHeight,
+    })
+  }, [messageCount])
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (pending || draft.trim() === '') {
@@ -133,8 +159,21 @@ export function InterviewView({
     <main className={ROOT_CLASS}>
       {/* The scrolling region: the empty-state invitation before the
           first message, then the conversation itself. Everything else
-          lives in the pinned footer below, outside this region. */}
-      <section className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          lives in the pinned footer below, outside this region. Its
+          last scroll position decides whether a new message auto-scrolls
+          (issue #88). */}
+      <section
+        ref={scrollRegionRef}
+        onScroll={(event) => {
+          const { scrollTop, scrollHeight, clientHeight } = event.currentTarget
+          wasNearBottomRef.current = isNearBottom({
+            scrollTop,
+            scrollHeight,
+            clientHeight,
+          })
+        }}
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+      >
         {started ? (
           <ol className="flex flex-col gap-3">
             {messages.map((message, index) => (
