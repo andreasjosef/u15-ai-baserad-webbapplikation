@@ -45,11 +45,20 @@ function InterviewRoute() {
 
   async function handleSubmit(message: string): Promise<InterviewSubmitResult> {
     setPending(true)
+    // Optimistic user bubble (issue #96): the message shows in the
+    // transcript the instant it's sent — with the typing indicator
+    // landing below it — instead of bundling into the transcript only
+    // once the round trip completes. On a failed turn the bubble is
+    // removed again by reference, so a retry can never produce a
+    // duplicate (matching the message staying in the composer).
+    const optimisticMessage: InterviewMessage = { role: 'user', content: message }
+    setMessages((previous) => [...previous, optimisticMessage])
     try {
       const result = sessionId
         ? await sendInterviewMessage({ data: { sessionId, message } })
         : await startInterview({ data: { message } })
       if (!result.ok) {
+        setMessages((previous) => previous.filter((m) => m !== optimisticMessage))
         return result
       }
       setSessionId(result.sessionId)
@@ -58,13 +67,13 @@ function InterviewRoute() {
       setProjectSummary(result.projectSummary)
       setMessages((previous) => [
         ...previous,
-        { role: 'user', content: message },
         { role: 'assistant', content: result.assistantReply },
       ])
       // A proposed breakdown hands the rest of the Interview to the
       // review route — this route holds none of that data itself.
       return { ok: true, breakdownProposed: result.firedBreakdown }
     } catch {
+      setMessages((previous) => previous.filter((m) => m !== optimisticMessage))
       return { ok: false, message: INTERVIEW_FAILURE }
     } finally {
       setPending(false)
