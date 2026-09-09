@@ -10,6 +10,11 @@
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const MIN_PASSWORD_LENGTH = 8
 
+// The repo's generic "parsed, or a user-facing reason why not" result.
+// Named for its first use (auth), but reused verbatim by every other
+// input parser — interview messages (interview-input.ts), Todoist tokens
+// (token-input.ts), task edits and proposed breakdowns (task-input.ts).
+// Read the name as "ParseResult<T>"; the `Credentials` is historical.
 export type ParsedCredentials<T> =
   | { ok: true; data: T }
   | { ok: false; message: string }
