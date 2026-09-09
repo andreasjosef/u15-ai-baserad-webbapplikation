@@ -19,23 +19,23 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 
-import { TaskBreakdown } from '../components/task-breakdown.tsx'
-import type { TaskActionResult, TaskRow } from '../components/task-review.tsx'
-import type { Phase } from '../lib/phase.ts'
-import { requireAuthSession } from '../lib/require-auth-session.ts'
-import { requireReviewableBreakdown } from '../lib/require-reviewable-breakdown.ts'
-import type { TaskEditInput } from '../lib/task-input.ts'
+import { TaskBreakdown } from '../../components/task-breakdown.tsx'
+import type { TaskActionResult, TaskRow } from '../../components/task-review.tsx'
+import type { Phase } from '../../lib/phase.ts'
+import { requireAuthSession } from '../../lib/require-auth-session.ts'
+import { requireReviewableBreakdown } from '../../lib/require-reviewable-breakdown.ts'
+import type { TaskEditInput } from '../../lib/task-input.ts'
 import {
   addTaskToBreakdown,
   getTaskBreakdown,
   INTERVIEW_FAILURE,
   removeTaskFromBreakdown,
   updateTaskInBreakdown,
-} from '../lib/server/interview-actions.ts'
-import { confirmTaskBreakdown } from '../lib/server/todoist-creation-actions.ts'
-import { getSession } from '../lib/server/session.ts'
+} from '../../lib/server/interview-actions.ts'
+import { confirmTaskBreakdown } from '../../lib/server/todoist-creation-actions.ts'
+import { getSession } from '../../lib/server/session.ts'
 
-export const Route = createFileRoute('/interview_/$sessionId')({
+export const Route = createFileRoute('/_shell/interview_/$sessionId')({
   beforeLoad: async () => {
     requireAuthSession(await getSession())
   },

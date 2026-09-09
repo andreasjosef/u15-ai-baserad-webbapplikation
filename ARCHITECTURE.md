@@ -44,8 +44,10 @@ the tasks inside it.
 src/
   routes/            TanStack Router file routes. Thin: a beforeLoad/loader
                      guard, local state, and calls into server functions.
-                     index, interview, interview_.$sessionId, history,
-                     login, signup, settings, api/auth/$ (Better Auth mount).
+                     index, login, signup, settings, api/auth/$ (Better Auth
+                     mount), and a pathless `_shell` layout wrapping
+                     _shell/{interview, interview_.$sessionId, history} — the
+                     post-login screens the nav shell renders around.
   components/         Presentational React. Rendered by routes, and directly
                      by their own tests without a router context.
   lib/               Pure, environment-free logic — validation, Phase
@@ -76,8 +78,9 @@ Two layers deserve attention:
 
 The core flow, from a keystroke to a persisted turn.
 
-1. **`src/routes/interview.tsx`** — `InterviewRoute` holds the transcript in
-   local state (the conversation is single-sitting — `docs/plan.md` §13).
+1. **`src/routes/_shell/interview.tsx`** — `InterviewRoute` holds the
+   transcript in local state (the conversation is single-sitting —
+   `docs/plan.md` §13).
    `handleSubmit` calls `startInterview` on the first message, then
    `sendInterviewMessage` for each turn.
 2. **`src/lib/server/interview-actions.ts`** — the server function
@@ -129,13 +132,14 @@ intentional (`CONTEXT.md` "Phase", `docs/plan.md` §7).
 
 ## Walked path: confirming the breakdown
 
-1. **`src/routes/interview.tsx` / `interview_.$sessionId.tsx`** —
+1. **`src/routes/_shell/interview.tsx` / `_shell/interview_.$sessionId.tsx`** —
    `handleConfirmTask` calls `confirmTaskBreakdown`. The review route
    (`interview_.$sessionId.tsx`) is a direct-link sibling reachable by
    Session id; its `loader` + `require-reviewable-breakdown.ts` guard redirect
    anything that is not a Proposed/Completed Session the user owns. (The
    trailing `_` in the filename is TanStack Router's "do not nest under the
-   `interview` layout" escape.)
+   `interview` layout" escape; both still nest under the pathless `_shell`
+   nav-shell layout, which changes no URL.)
 2. **`src/lib/server/todoist-creation-actions.ts`** — decrypts the user's
    Todoist token (`token-crypto.ts`, AES-256-GCM, ADR-0002), builds the real
    ports (`createTodoistClient` + Drizzle), calls the orchestrator.
