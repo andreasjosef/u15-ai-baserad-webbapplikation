@@ -44,12 +44,14 @@ describe('NavShell', () => {
   // classes, since jsdom does no layout.
   it('is height-bound: fixed shell with an internally scrolling content wrapper', () => {
     renderShell()
-    const shell = screen.getByText('Screen content').closest('.h-dvh')
+    const content = screen.getByText('Screen content')
+
+    const shell = content.closest('.h-dvh')
     expect(shell).not.toBeNull()
     expect(shell).toHaveClass('overflow-hidden')
     expect(shell).not.toHaveClass('min-h-screen')
 
-    const wrapper = screen.getByText('Screen content').closest('.overflow-y-auto')
+    const wrapper = content.closest('.overflow-y-auto')
     expect(wrapper).not.toBeNull()
     expect(wrapper).toHaveClass('min-h-0', 'flex-1')
   })
