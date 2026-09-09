@@ -136,6 +136,61 @@ describe('InterviewView', () => {
     expect(screen.queryByRole('button', { name: /start/i })).not.toBeInTheDocument()
   })
 
+  // --- Typing indicator (issue #89) ----------------------------------------
+
+  // The indicator is the reply's placeholder bubble: appended at the end
+  // of the message list, where the next interviewer turn will land. It
+  // shares the interviewer bubble's shape and fill but holds three
+  // animated dots instead of text — no "typing…" label and no spinner
+  // anywhere else on the screen.
+  it('appends a typing-indicator bubble to the message list while a turn is pending', () => {
+    render(
+      <InterviewView
+        {...baseProps}
+        pending
+        messages={[
+          { role: 'user', content: 'idea' },
+          { role: 'assistant', content: 'question?' },
+        ]}
+      />,
+    )
+    const items = screen.getAllByRole('listitem')
+    expect(items).toHaveLength(3)
+    const indicator = items[2]
+    // Acceptance criterion: it shares INTERVIEWER_BUBBLE_CLASS's shape
+    // and fill — class membership is the only honest check of that.
+    expect(indicator).toHaveClass('rounded-2xl', 'bg-primary')
+    // No text — just the three animated dots.
+    expect(indicator).toHaveTextContent('')
+    expect(indicator.querySelectorAll('span')).toHaveLength(3)
+  })
+
+  // Covers the "Starting…" case: the very first turn is pending and the
+  // message list is still empty, so the indicator takes the invitation's
+  // place at the spot where the first reply will land.
+  it('shows the typing indicator alone while the first turn is starting', () => {
+    render(<InterviewView {...baseProps} pending />)
+    const items = screen.getAllByRole('listitem')
+    expect(items).toHaveLength(1)
+    expect(items[0].querySelectorAll('span')).toHaveLength(3)
+    expect(screen.queryByText('What should we Hone?')).not.toBeInTheDocument()
+  })
+
+  it('hides the typing indicator when no turn is pending', () => {
+    render(
+      <InterviewView
+        {...baseProps}
+        messages={[
+          { role: 'user', content: 'idea' },
+          { role: 'assistant', content: 'question?' },
+        ]}
+      />,
+    )
+    const items = screen.getAllByRole('listitem')
+    expect(items).toHaveLength(2)
+    expect(items.every((item) => item.textContent !== '')).toBe(true)
+  })
+
   // --- Hand-off to the review route (issue #56) ---------------------------
 
   it('navigates to the review route the instant a turn proposes a breakdown', async () => {

@@ -33,6 +33,11 @@
 // judged by isNearBottom on the last scroll event and remembered in a
 // ref, so the check happens before the new message renders. Someone
 // scrolled up to reread is never yanked back down.
+//
+// Typing indicator (issue #89): while a turn is pending the reply's
+// placeholder bubble — an animated three-dot pill in the interviewer's
+// shape and fill — sits at the end of the message list where the reply
+// will land, covering both the "Starting…" and "Thinking…" states.
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 
 import { ArrowUpIcon } from 'lucide-react'
@@ -76,6 +81,13 @@ export interface InterviewViewProps {
 const BUBBLE_BASE_CLASS = 'max-w-[85%] rounded-2xl px-4 py-2 text-sm'
 const INTERVIEWER_BUBBLE_CLASS = `${BUBBLE_BASE_CLASS} self-start rounded-bl-sm bg-primary text-primary-foreground`
 const USER_BUBBLE_CLASS = `${BUBBLE_BASE_CLASS} self-end rounded-br-sm border border-border bg-card text-card-foreground`
+
+// Typing indicator (issue #89): the reply's placeholder bubble — the
+// interviewer bubble's pill and fill, with three bouncing dots instead
+// of text. Purely decorative: the composer's disabled send control is
+// the accessible signal that a turn is pending.
+const TYPING_INDICATOR_CLASS = `${INTERVIEWER_BUBBLE_CLASS} flex items-center gap-1.5 py-3`
+const TYPING_DOT_CLASS = 'size-1.5 animate-bounce rounded-full bg-primary-foreground/70'
 
 // The composer wrapper mirrors the focus treatment `ui/input.tsx` gives
 // the shared Input (border-ring plus a ring on focus) — expressed with
@@ -174,7 +186,7 @@ export function InterviewView({
         }}
         className="flex min-h-0 flex-1 flex-col overflow-y-auto"
       >
-        {started ? (
+        {started || pending ? (
           <ol className="flex flex-col gap-3">
             {messages.map((message, index) => (
               <li
@@ -188,6 +200,13 @@ export function InterviewView({
                 {message.content}
               </li>
             ))}
+            {pending && (
+              <li className={TYPING_INDICATOR_CLASS}>
+                <span className={`${TYPING_DOT_CLASS} [animation-delay:-0.3s]`} />
+                <span className={`${TYPING_DOT_CLASS} [animation-delay:-0.15s]`} />
+                <span className={TYPING_DOT_CLASS} />
+              </li>
+            )}
           </ol>
         ) : (
           <div className="flex flex-1 items-center justify-center">
