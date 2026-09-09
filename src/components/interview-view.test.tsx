@@ -21,11 +21,45 @@ const baseProps = {
 describe('InterviewView', () => {
   it('invites a vague idea before the conversation starts', () => {
     render(<InterviewView {...baseProps} />)
-    expect(screen.getByRole('heading', { name: /hone/i })).toBeInTheDocument()
-    expect(
-      screen.getByText(/what.*(idea|working on)/i),
-    ).toBeInTheDocument()
+    expect(screen.getByText('What should we Hone?')).toBeInTheDocument()
+    expect(screen.queryByRole('heading')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /start/i })).toBeInTheDocument()
+  })
+
+  // --- Full-height layout & empty-state placeholder (issue #87) -----------
+
+  // Gated on `started` (messages.length > 0), not on draft content, so it
+  // stays up while the user is still drafting their first message.
+  it('keeps the placeholder visible while the first message is being drafted', () => {
+    render(<InterviewView {...baseProps} />)
+    fireEvent.change(screen.getByLabelText(/idea/i), {
+      target: { value: 'I should sort out the garage' },
+    })
+    expect(screen.getByText('What should we Hone?')).toBeInTheDocument()
+  })
+
+  // It clears the moment the first message is actually sent — rerendering
+  // with one message is what a successful turn looks like from the route.
+  it('clears the placeholder once the first message is sent', async () => {
+    const onSubmit = vi.fn().mockResolvedValue({ ok: true })
+    const { rerender } = render(
+      <InterviewView {...baseProps} onSubmit={onSubmit} />,
+    )
+    fireEvent.change(screen.getByLabelText(/idea/i), {
+      target: { value: 'I should sort out the garage' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /start/i }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled())
+
+    rerender(
+      <InterviewView
+        {...baseProps}
+        messages={[{ role: 'user', content: 'I should sort out the garage' }]}
+        onSubmit={onSubmit}
+      />,
+    )
+    expect(screen.queryByText('What should we Hone?')).not.toBeInTheDocument()
+    expect(screen.getByText('I should sort out the garage')).toBeInTheDocument()
   })
 
   it('renders the conversation in order, with the assistant questions and user answers', () => {
@@ -56,6 +90,9 @@ describe('InterviewView', () => {
     )
     const hint = screen.getByRole('status')
     expect(hint).toHaveTextContent('Sort out the garage before winter')
+    // Relocated into the pinned footer (issue #87), not the scrolling
+    // conversation region.
+    expect(hint.closest('footer')).not.toBeNull()
   })
 
   it('submits the typed message and clears the box on success', async () => {
