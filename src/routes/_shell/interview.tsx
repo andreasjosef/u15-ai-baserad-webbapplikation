@@ -14,17 +14,17 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useRef, useState } from 'react'
 
-import { InterviewView, type InterviewMessage, type InterviewSubmitResult } from '../components/interview-view.tsx'
-import type { Phase } from '../lib/phase.ts'
-import { requireAuthSession } from '../lib/require-auth-session.ts'
+import { InterviewView, type InterviewMessage, type InterviewSubmitResult } from '../../components/interview-view.tsx'
+import type { Phase } from '../../lib/phase.ts'
+import { requireAuthSession } from '../../lib/require-auth-session.ts'
 import {
   INTERVIEW_FAILURE,
   sendInterviewMessage,
   startInterview,
-} from '../lib/server/interview-actions.ts'
-import { getSession } from '../lib/server/session.ts'
+} from '../../lib/server/interview-actions.ts'
+import { getSession } from '../../lib/server/session.ts'
 
-export const Route = createFileRoute('/interview')({
+export const Route = createFileRoute('/_shell/interview')({
   beforeLoad: async () => {
     requireAuthSession(await getSession())
   },

@@ -10,16 +10,16 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 
-import { HistoryView, type HistorySessionRow } from '../components/history-view.tsx'
-import { requireAuthSession } from '../lib/require-auth-session.ts'
+import { HistoryView, type HistorySessionRow } from '../../components/history-view.tsx'
+import { requireAuthSession } from '../../lib/require-auth-session.ts'
 import {
   getHistory,
   getHistoryDetail,
   HISTORY_FAILURE,
-} from '../lib/server/history-actions.ts'
-import { getSession } from '../lib/server/session.ts'
+} from '../../lib/server/history-actions.ts'
+import { getSession } from '../../lib/server/session.ts'
 
-export const Route = createFileRoute('/history')({
+export const Route = createFileRoute('/_shell/history')({
   beforeLoad: async () => {
     requireAuthSession(await getSession())
   },
