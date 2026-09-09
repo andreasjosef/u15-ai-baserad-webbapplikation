@@ -6,7 +6,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { InterviewView } from './interview-view.tsx'
+import { InterviewView, type InterviewMessage } from './interview-view.tsx'
 import type { Phase } from '../lib/phase.ts'
 
 const baseProps = {
@@ -190,5 +190,123 @@ describe('InterviewView', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
     expect(screen.queryByText(/tasks are in todoist/i)).not.toBeInTheDocument()
     expect(screen.getByLabelText(/answer/i)).toBeInTheDocument()
+  })
+
+  // --- Auto-scroll to the newest message (issue #88) -----------------------
+
+  // jsdom has no layout engine, so the scroll region's metrics are
+  // pinned with property overrides and the behavior is observed through
+  // the scrollTo call. The "was near bottom" judgement itself is unit
+  // tested in scroll-near-bottom.test.ts with plain numbers.
+  function pinScrollRegion(
+    region: HTMLElement,
+    metrics: { scrollTop: number; scrollHeight: number; clientHeight: number },
+  ) {
+    for (const [key, value] of Object.entries(metrics)) {
+      Object.defineProperty(region, key, { value, configurable: true })
+    }
+  }
+
+  function getScrollRegion(container: HTMLElement): HTMLElement {
+    const region = container.querySelector('main > section')
+    if (region === null) throw new Error('scroll region not found')
+    return region as HTMLElement
+  }
+
+  it('scrolls the conversation region to the bottom when a message arrives while already near the bottom', () => {
+    const initialMessages: InterviewMessage[] = [
+      { role: 'user', content: 'idea' },
+      { role: 'assistant', content: 'question?' },
+    ]
+    const { container, rerender } = render(
+      <InterviewView {...baseProps} messages={initialMessages} />,
+    )
+    const region = getScrollRegion(container)
+    pinScrollRegion(region, {
+      scrollTop: 500,
+      scrollHeight: 1000,
+      clientHeight: 500,
+    })
+    const scrollTo = vi.fn()
+    region.scrollTo = scrollTo
+    scrollTo.mockClear() // discard any mount-time call
+
+    rerender(
+      <InterviewView
+        {...baseProps}
+        messages={[...initialMessages, { role: 'assistant', content: 'follow-up?' }]}
+      />,
+    )
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 1000 })
+  })
+
+  it('leaves the scroll position untouched when the user has scrolled up and a message arrives', () => {
+    const initialMessages: InterviewMessage[] = [
+      { role: 'user', content: 'idea' },
+      { role: 'assistant', content: 'question?' },
+    ]
+    const { container, rerender } = render(
+      <InterviewView {...baseProps} messages={initialMessages} />,
+    )
+    const region = getScrollRegion(container)
+    pinScrollRegion(region, {
+      scrollTop: 0,
+      scrollHeight: 1000,
+      clientHeight: 500,
+    })
+    const scrollTo = vi.fn()
+    region.scrollTo = scrollTo
+    scrollTo.mockClear()
+
+    // The user scrolled up to reread the first turn — the scroll event
+    // is what tells the view they are no longer near the bottom.
+    fireEvent.scroll(region)
+
+    rerender(
+      <InterviewView
+        {...baseProps}
+        messages={[...initialMessages, { role: 'assistant', content: 'follow-up?' }]}
+      />,
+    )
+
+    expect(scrollTo).not.toHaveBeenCalled()
+  })
+
+  it('returns to auto-scrolling once the user scrolls back down to the bottom', () => {
+    const initialMessages: InterviewMessage[] = [
+      { role: 'user', content: 'idea' },
+      { role: 'assistant', content: 'question?' },
+    ]
+    const { container, rerender } = render(
+      <InterviewView {...baseProps} messages={initialMessages} />,
+    )
+    const region = getScrollRegion(container)
+    pinScrollRegion(region, {
+      scrollTop: 0,
+      scrollHeight: 1000,
+      clientHeight: 500,
+    })
+    const scrollTo = vi.fn()
+    region.scrollTo = scrollTo
+    scrollTo.mockClear()
+
+    fireEvent.scroll(region) // scrolled up
+    // Scrolled back down to the bottom.
+    pinScrollRegion(region, {
+      scrollTop: 500,
+      scrollHeight: 1000,
+      clientHeight: 500,
+    })
+    fireEvent.scroll(region)
+
+    rerender(
+      <InterviewView
+        {...baseProps}
+        messages={[...initialMessages, { role: 'assistant', content: 'follow-up?' }]}
+      />,
+    )
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 1000 })
   })
 })
