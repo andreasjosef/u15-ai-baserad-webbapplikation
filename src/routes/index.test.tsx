@@ -42,6 +42,14 @@ describe('HomePage', () => {
     expect(onOpenHistory).toHaveBeenCalledTimes(1)
   })
 
+  it('shows the three how-it-works steps', () => {
+    renderHomePage()
+
+    expect(screen.getByText('Answer a few questions')).toBeInTheDocument()
+    expect(screen.getByText('Get a concrete plan')).toBeInTheDocument()
+    expect(screen.getByText('Sync it to Todoist')).toBeInTheDocument()
+  })
+
   it('offers a way to open account settings', () => {
     const { onOpenSettings } = renderHomePage()
 
