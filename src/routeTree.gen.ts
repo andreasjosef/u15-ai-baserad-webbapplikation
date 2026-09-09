@@ -10,12 +10,13 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as HistoryRouteImport } from './routes/history'
-import { Route as InterviewRouteImport } from './routes/interview'
+import { Route as ShellRouteImport } from './routes/_shell'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SignupRouteImport } from './routes/signup'
-import { Route as InterviewSessionIdRouteImport } from './routes/interview_.$sessionId'
+import { Route as ShellHistoryRouteImport } from './routes/_shell/history'
+import { Route as ShellInterviewRouteImport } from './routes/_shell/interview'
+import { Route as ShellInterviewSessionIdRouteImport } from './routes/_shell/interview_.$sessionId'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -23,14 +24,8 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const HistoryRoute = HistoryRouteImport.update({
-  id: '/history',
-  path: '/history',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const InterviewRoute = InterviewRouteImport.update({
-  id: '/interview',
-  path: '/interview',
+const ShellRoute = ShellRouteImport.update({
+  id: '/_shell',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -48,10 +43,20 @@ const SignupRoute = SignupRouteImport.update({
   path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
-const InterviewSessionIdRoute = InterviewSessionIdRouteImport.update({
+const ShellHistoryRoute = ShellHistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellInterviewRoute = ShellInterviewRouteImport.update({
+  id: '/interview',
+  path: '/interview',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellInterviewSessionIdRoute = ShellInterviewSessionIdRouteImport.update({
   id: '/interview_/$sessionId',
   path: '/interview/$sessionId',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => ShellRoute,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
@@ -61,76 +66,76 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/history': typeof HistoryRoute
-  '/interview': typeof InterviewRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
-  '/interview/$sessionId': typeof InterviewSessionIdRoute
+  '/history': typeof ShellHistoryRoute
+  '/interview': typeof ShellInterviewRoute
+  '/interview/$sessionId': typeof ShellInterviewSessionIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/history': typeof HistoryRoute
-  '/interview': typeof InterviewRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
-  '/interview/$sessionId': typeof InterviewSessionIdRoute
+  '/history': typeof ShellHistoryRoute
+  '/interview': typeof ShellInterviewRoute
+  '/interview/$sessionId': typeof ShellInterviewSessionIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/history': typeof HistoryRoute
-  '/interview': typeof InterviewRoute
+  '/_shell': typeof ShellRouteWithChildren
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
-  '/interview_/$sessionId': typeof InterviewSessionIdRoute
+  '/_shell/history': typeof ShellHistoryRoute
+  '/_shell/interview': typeof ShellInterviewRoute
+  '/_shell/interview_/$sessionId': typeof ShellInterviewSessionIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/history'
-    | '/interview'
     | '/login'
     | '/settings'
     | '/signup'
+    | '/history'
+    | '/interview'
     | '/interview/$sessionId'
     | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/history'
-    | '/interview'
     | '/login'
     | '/settings'
     | '/signup'
+    | '/history'
+    | '/interview'
     | '/interview/$sessionId'
     | '/api/auth/$'
   id:
     | '__root__'
     | '/'
-    | '/history'
-    | '/interview'
+    | '/_shell'
     | '/login'
     | '/settings'
     | '/signup'
-    | '/interview_/$sessionId'
+    | '/_shell/history'
+    | '/_shell/interview'
+    | '/_shell/interview_/$sessionId'
     | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  HistoryRoute: typeof HistoryRoute
-  InterviewRoute: typeof InterviewRoute
+  ShellRoute: typeof ShellRouteWithChildren
   LoginRoute: typeof LoginRoute
   SettingsRoute: typeof SettingsRoute
   SignupRoute: typeof SignupRoute
-  InterviewSessionIdRoute: typeof InterviewSessionIdRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -143,18 +148,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/history': {
-      id: '/history'
-      path: '/history'
-      fullPath: '/history'
-      preLoaderRoute: typeof HistoryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/interview': {
-      id: '/interview'
-      path: '/interview'
-      fullPath: '/interview'
-      preLoaderRoute: typeof InterviewRouteImport
+    '/_shell': {
+      id: '/_shell'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof ShellRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -178,12 +176,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/interview_/$sessionId': {
-      id: '/interview_/$sessionId'
+    '/_shell/history': {
+      id: '/_shell/history'
+      path: '/history'
+      fullPath: '/history'
+      preLoaderRoute: typeof ShellHistoryRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/interview': {
+      id: '/_shell/interview'
+      path: '/interview'
+      fullPath: '/interview'
+      preLoaderRoute: typeof ShellInterviewRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/interview_/$sessionId': {
+      id: '/_shell/interview_/$sessionId'
       path: '/interview/$sessionId'
       fullPath: '/interview/$sessionId'
-      preLoaderRoute: typeof InterviewSessionIdRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof ShellInterviewSessionIdRouteImport
+      parentRoute: typeof ShellRoute
     }
     '/api/auth/$': {
       id: '/api/auth/$'
@@ -195,14 +207,26 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface ShellRouteChildren {
+  ShellHistoryRoute: typeof ShellHistoryRoute
+  ShellInterviewRoute: typeof ShellInterviewRoute
+  ShellInterviewSessionIdRoute: typeof ShellInterviewSessionIdRoute
+}
+
+const ShellRouteChildren: ShellRouteChildren = {
+  ShellHistoryRoute: ShellHistoryRoute,
+  ShellInterviewRoute: ShellInterviewRoute,
+  ShellInterviewSessionIdRoute: ShellInterviewSessionIdRoute,
+}
+
+const ShellRouteWithChildren = ShellRoute._addFileChildren(ShellRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  HistoryRoute: HistoryRoute,
-  InterviewRoute: InterviewRoute,
+  ShellRoute: ShellRouteWithChildren,
   LoginRoute: LoginRoute,
   SettingsRoute: SettingsRoute,
   SignupRoute: SignupRoute,
-  InterviewSessionIdRoute: InterviewSessionIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport

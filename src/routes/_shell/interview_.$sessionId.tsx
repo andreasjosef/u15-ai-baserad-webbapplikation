@@ -1,7 +1,9 @@
 // The Task Breakdown review route (issue #55), addressed by the
 // Interview Session's id and sibling to the conversation route —
 // reachable by direct link only (the conversation screen does not link
-// here yet). Fresh navigation, a refresh, or reopening the tab later
+// here yet). The trailing `_` in the filename is TanStack Router's
+// escape for "do not nest this under the `interview` route's layout":
+// the URL is still `/interview/<id>`, but it renders standalone. Fresh navigation, a refresh, or reopening the tab later
 // loads the proposed project title, tasks, and Phase straight from the
 // server through the same task-breakdown fetch the conversation screen
 // uses — nothing is carried over from the conversation.
@@ -17,23 +19,23 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 
-import { TaskBreakdown } from '../components/task-breakdown.tsx'
-import type { TaskActionResult, TaskRow } from '../components/task-review.tsx'
-import type { Phase } from '../lib/phase.ts'
-import { requireAuthSession } from '../lib/require-auth-session.ts'
-import { requireReviewableBreakdown } from '../lib/require-reviewable-breakdown.ts'
-import type { TaskEditInput } from '../lib/task-input.ts'
+import { TaskBreakdown } from '../../components/task-breakdown.tsx'
+import type { TaskActionResult, TaskRow } from '../../components/task-review.tsx'
+import type { Phase } from '../../lib/phase.ts'
+import { requireAuthSession } from '../../lib/require-auth-session.ts'
+import { requireReviewableBreakdown } from '../../lib/require-reviewable-breakdown.ts'
+import type { TaskEditInput } from '../../lib/task-input.ts'
 import {
   addTaskToBreakdown,
   getTaskBreakdown,
   INTERVIEW_FAILURE,
   removeTaskFromBreakdown,
   updateTaskInBreakdown,
-} from '../lib/server/interview-actions.ts'
-import { confirmTaskBreakdown } from '../lib/server/todoist-creation-actions.ts'
-import { getSession } from '../lib/server/session.ts'
+} from '../../lib/server/interview-actions.ts'
+import { confirmTaskBreakdown } from '../../lib/server/todoist-creation-actions.ts'
+import { getSession } from '../../lib/server/session.ts'
 
-export const Route = createFileRoute('/interview_/$sessionId')({
+export const Route = createFileRoute('/_shell/interview_/$sessionId')({
   beforeLoad: async () => {
     requireAuthSession(await getSession())
   },

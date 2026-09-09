@@ -8,6 +8,11 @@
 // drizzle.config.ts and docs/research.md §4.2. Never run `auth migrate`
 // against this schema; it's a competing migrator that fights Drizzle Kit's
 // own migration bookkeeping.
+//
+// Known drift: the generated schema still carries `account.issuer`, a
+// legacy column from Better Auth 1.7.0–1.7.2. It is harmless at the
+// pinned version but will break account inserts on any upgrade past
+// 1.7.2 and must be dropped first — tracked in issue #71.
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { tanstackStartCookies } from 'better-auth/tanstack-start'
