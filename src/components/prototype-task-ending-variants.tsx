@@ -497,8 +497,8 @@ export function TaskEndingVariantC(props: TaskEndingVariantProps) {
   }
 
   return (
-    <section className="flex flex-col gap-4">
-      <header className="flex flex-col gap-1">
+    <section className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-8">
+      <header className="flex flex-col gap-1 rounded-xl border border-border bg-card px-4 py-3">
         <h2 className="text-xl font-bold tracking-tight">{projectTitle}</h2>
         <p className="text-sm text-muted-foreground">
           Your task list is ready — rename anything, set priorities and due dates, add or remove tasks.
