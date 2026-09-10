@@ -13,7 +13,7 @@
 // suppression (Proposed or Completed) stays in exactly one place.
 import type { ReactNode } from 'react'
 
-import { CheckIcon } from 'lucide-react'
+import { CheckCircle2, ExternalLinkIcon } from 'lucide-react'
 
 import type { Phase } from '../lib/phase.ts'
 import type { TaskEditInput } from '../lib/task-input.ts'
@@ -76,41 +76,42 @@ export function TaskBreakdown({
   }
 
   if (completed) {
-    // The wrapped-up confirmation (issues #69, #110): a receipt in the
-    // same card language as the review screen — a checkmark, a
-    // count-per-priority breakdown mirroring the review sections (same
-    // shared priority module, same Urgent→Normal order, same
-    // singular/plural wording), and a link to the Todoist project the
-    // Interview created. `derivePhase` only returns 'Completed' once
-    // `todoistProjectId` is set, so the link renders unconditionally.
+    // The wrapped-up confirmation (issues #69, #110, #113): the
+    // prototype's (task-breakdown-ending-107, Direction C) centered
+    // ending — a circled checkmark as the focal point, a "Wrapped up"
+    // heading, a count-per-priority breakdown mirroring the review
+    // sections (same shared priority module, same Urgent→Normal order,
+    // same singular/plural wording), and a link to the Todoist project
+    // the Interview created. Bare centered column, not the review
+    // screen's boxed card, with the prototype's py-10 breathing room.
+    // `derivePhase` only returns 'Completed' once `todoistProjectId` is
+    // set, so the link renders unconditionally.
     const groups = groupTasksByPriority(tasks ?? [])
     return (
-      <div
-        role="status"
-        className="mx-auto flex w-full max-w-2xl flex-col gap-3 rounded-xl border border-border bg-card px-4 py-4 text-sm text-card-foreground"
-      >
-        <div className="flex items-center gap-2">
-          <CheckIcon aria-hidden="true" className="size-5 shrink-0 text-primary" />
-          <p>Your tasks are in Todoist — this Interview is wrapped up.</p>
-        </div>
-        <div className="flex flex-col gap-1">
+      <div role="status" className="mx-auto flex w-full max-w-xs flex-col items-center gap-4 py-10 text-center">
+        <CheckCircle2 aria-hidden="true" className="size-8 text-primary" />
+        <h2 className="text-lg font-bold tracking-tight">Wrapped up</h2>
+        <ul role="list" className="w-full list-none divide-y divide-border rounded-lg border border-border p-0 text-sm">
           {groups.map(({ priority, tasks: rows }) => (
-            <div key={priority} className="flex items-center gap-2">
-              <span aria-hidden="true" className={`size-2 shrink-0 rounded-full ${PRIORITY_META[priority].dot}`} />
-              <span className="font-medium">{PRIORITY_META[priority].label}</span>
+            <li key={priority} className="flex items-center justify-between px-3 py-2">
+              <span className={`flex items-center gap-2 ${PRIORITY_META[priority].text}`}>
+                <span aria-hidden="true" className={`size-2 shrink-0 rounded-full ${PRIORITY_META[priority].dot}`} />
+                {PRIORITY_META[priority].label}
+              </span>
               <span className="text-muted-foreground">
                 {rows.length} task{rows.length === 1 ? '' : 's'}
               </span>
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
         <a
           href={`https://app.todoist.com/app/project/${todoistProjectId}`}
           target="_blank"
           rel="noreferrer"
-          className="self-start font-medium text-primary underline-offset-4 hover:underline"
+          className="inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-4 hover:underline"
         >
           Open your project in Todoist
+          <ExternalLinkIcon aria-hidden="true" className="size-3.5" />
         </a>
       </div>
     )

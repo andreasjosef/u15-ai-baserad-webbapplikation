@@ -89,14 +89,13 @@ describe('TaskBreakdown', () => {
     }
   })
 
-  it('renders the wrapped-up state once Completed, with no cards or fallback', () => {
+  it('renders the wrapped-up state once Completed, with no fallback', () => {
     render(
       <TaskBreakdown {...baseProps} phase="Completed">
         <p>never shown</p>
       </TaskBreakdown>,
     )
-    expect(screen.getByText(/tasks are in todoist/i)).toBeInTheDocument()
-    expect(screen.queryByRole('list')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Wrapped up' })).toBeInTheDocument()
     expect(screen.queryByText('never shown')).not.toBeInTheDocument()
   })
 
@@ -114,14 +113,21 @@ describe('TaskBreakdown', () => {
       return render(<TaskBreakdown {...completedProps} {...overrides} />)
     }
 
-    it('renders a checkmark before the wrapped-up copy, with no cards or fallback', () => {
+    it('renders a circular checkmark over a Wrapped up heading, in a bare centered column', () => {
       renderReceipt({ children: <p>never shown</p> })
       const receipt = screen.getByRole('status')
-      expect(within(receipt).getByText(/tasks are in todoist/i)).toBeInTheDocument()
       // The checkmark leads the receipt, read structurally like the
-      // review screen's dots: a decorative svg ahead of the copy.
-      expect(receipt.querySelector('svg')).toBeInTheDocument()
-      expect(screen.queryByRole('list')).not.toBeInTheDocument()
+      // review screen's dots: a decorative svg ahead of the copy. It is
+      // the prototype's circled check (CheckCircle2), not the bare
+      // CheckIcon the receipt shipped with.
+      expect(receipt.querySelector('svg.lucide-circle-check')).toBeInTheDocument()
+      expect(within(receipt).getByRole('heading', { name: 'Wrapped up' })).toBeInTheDocument()
+      // The prototype's bare centered column: no boxed-card treatment,
+      // content center-aligned with the prototype's py-10 breathing
+      // room from the top of the viewport.
+      expect(receipt).toHaveClass('items-center', 'py-10')
+      expect(receipt).not.toHaveClass('border')
+      expect(receipt).not.toHaveClass('bg-card')
       expect(screen.queryByRole('button', { name: /todoist/i })).not.toBeInTheDocument()
       expect(screen.queryByText('never shown')).not.toBeInTheDocument()
     })
@@ -143,9 +149,9 @@ describe('TaskBreakdown', () => {
     it('pluralizes each per-priority count like the review sections', () => {
       renderReceipt({ tasks: receiptTasks })
       const receipt = screen.getByRole('status')
-      const urgentRow = within(receipt).getByText('Urgent').parentElement
-      const highRow = within(receipt).getByText('High').parentElement
-      const normalRow = within(receipt).getByText('Normal').parentElement
+      const urgentRow = within(receipt).getByText('Urgent').closest('li')
+      const highRow = within(receipt).getByText('High').closest('li')
+      const normalRow = within(receipt).getByText('Normal').closest('li')
       expect(urgentRow).toHaveTextContent('1 task')
       expect(highRow).toHaveTextContent('2 tasks')
       expect(normalRow).toHaveTextContent('1 task')
@@ -170,7 +176,7 @@ describe('TaskBreakdown', () => {
       // The colors themselves are locked in task-priority-groups.test.ts;
       // here each row is read structurally: dot, then label, then count.
       for (const label of ['Urgent', 'High', 'Normal']) {
-        const row = within(receipt).getByText(label).parentElement
+        const row = within(receipt).getByText(label).closest('li')
         expect(row?.querySelector('span[aria-hidden="true"]')).toBeInTheDocument()
       }
     })
