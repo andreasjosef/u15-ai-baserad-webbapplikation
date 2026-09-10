@@ -2,7 +2,7 @@
 // Pure like the other form components: the phase arrives as a prop and
 // persistence arrives as injected callbacks, so the whole review and
 // wrapped-up flow renders without a router, db, or network.
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { TaskBreakdown, type TaskBreakdownProps } from './task-breakdown.tsx'
@@ -15,6 +15,7 @@ const tasks: ReadonlyArray<TaskRow> = [
 const baseProps = {
   phase: 'Proposed',
   projectTitle: 'Garage cleanup',
+  todoistProjectId: null,
   tasks,
   pending: false,
   onUpdateTask: vi.fn(),
@@ -97,6 +98,101 @@ describe('TaskBreakdown', () => {
     expect(screen.getByText(/tasks are in todoist/i)).toBeInTheDocument()
     expect(screen.queryByRole('list')).not.toBeInTheDocument()
     expect(screen.queryByText('never shown')).not.toBeInTheDocument()
+  })
+
+  describe('Completed receipt', () => {
+    const completedProps = { ...baseProps, phase: 'Completed' as const }
+
+    const receiptTasks: ReadonlyArray<TaskRow> = [
+      { id: 't1', title: 'First', description: null, priority: 'urgent', dueString: null },
+      { id: 't2', title: 'Second', description: null, priority: 'high', dueString: null },
+      { id: 't3', title: 'Third', description: null, priority: 'high', dueString: null },
+      { id: 't4', title: 'Fourth', description: null, priority: 'normal', dueString: null },
+    ]
+
+    function renderReceipt(overrides: Partial<TaskBreakdownProps> = {}) {
+      return render(<TaskBreakdown {...completedProps} {...overrides} />)
+    }
+
+    it('renders a checkmark before the wrapped-up copy, with no cards or fallback', () => {
+      renderReceipt({ children: <p>never shown</p> })
+      const receipt = screen.getByRole('status')
+      expect(within(receipt).getByText(/tasks are in todoist/i)).toBeInTheDocument()
+      // The checkmark leads the receipt, read structurally like the
+      // review screen's dots: a decorative svg ahead of the copy.
+      expect(receipt.querySelector('svg')).toBeInTheDocument()
+      expect(screen.queryByRole('list')).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /todoist/i })).not.toBeInTheDocument()
+      expect(screen.queryByText('never shown')).not.toBeInTheDocument()
+    })
+
+    it('shows a per-priority count breakdown for non-empty priorities only, in review order', () => {
+      renderReceipt({ tasks: receiptTasks })
+      const receipt = screen.getByRole('status')
+      expect(within(receipt).getByText('Urgent')).toBeInTheDocument()
+      expect(within(receipt).getByText('High')).toBeInTheDocument()
+      expect(within(receipt).getByText('Normal')).toBeInTheDocument()
+      expect(within(receipt).queryByText('Medium')).not.toBeInTheDocument()
+      // Urgent → High → Normal, the review screen's section order.
+      const labels = ['Urgent', 'High', 'Normal'].map((label) => within(receipt).getByText(label))
+      for (const [first, second] of labels.slice(0, -1).map((label, index) => [label, labels[index + 1]])) {
+        expect(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      }
+    })
+
+    it('pluralizes each per-priority count like the review sections', () => {
+      renderReceipt({ tasks: receiptTasks })
+      const receipt = screen.getByRole('status')
+      const urgentRow = within(receipt).getByText('Urgent').parentElement
+      const highRow = within(receipt).getByText('High').parentElement
+      const normalRow = within(receipt).getByText('Normal').parentElement
+      expect(urgentRow).toHaveTextContent('1 task')
+      expect(highRow).toHaveTextContent('2 tasks')
+      expect(normalRow).toHaveTextContent('1 task')
+    })
+
+    it('shows per-priority counts that sum to the total task count', () => {
+      renderReceipt({
+        tasks: [
+          ...receiptTasks,
+          { id: 't5', title: 'Fifth', description: null, priority: 'medium', dueString: null },
+        ],
+      })
+      const counts = within(screen.getByRole('status'))
+        .getAllByText(/\d+ tasks?/)
+        .map((el) => Number.parseInt(el.textContent ?? '', 10))
+      expect(counts.reduce((total, count) => total + count, 0)).toBe(5)
+    })
+
+    it('renders each count row with a decorative color dot before the label', () => {
+      renderReceipt({ tasks: receiptTasks })
+      const receipt = screen.getByRole('status')
+      // The colors themselves are locked in task-priority-groups.test.ts;
+      // here each row is read structurally: dot, then label, then count.
+      for (const label of ['Urgent', 'High', 'Normal']) {
+        const row = within(receipt).getByText(label).parentElement
+        expect(row?.querySelector('span[aria-hidden="true"]')).toBeInTheDocument()
+      }
+    })
+
+    it('links to the created Todoist project, opening in a new tab', () => {
+      renderReceipt({ todoistProjectId: 'proj_abc123' })
+      const link = screen.getByRole('link', { name: /open.*todoist/i })
+      expect(link).toHaveAttribute('href', 'https://app.todoist.com/app/project/proj_abc123')
+      expect(link).toHaveAttribute('target', '_blank')
+    })
+
+    it('threads todoistProjectId through as a prop into the confirmation link', () => {
+      const { rerender } = renderReceipt({ todoistProjectId: 'proj_one' })
+      expect(screen.getByRole('link')).toHaveAttribute('href', 'https://app.todoist.com/app/project/proj_one')
+      rerender(<TaskBreakdown {...completedProps} todoistProjectId="proj_two" />)
+      expect(screen.getByRole('link')).toHaveAttribute('href', 'https://app.todoist.com/app/project/proj_two')
+    })
+
+    it('shows no project title on the receipt', () => {
+      renderReceipt({ todoistProjectId: 'proj_abc123' })
+      expect(screen.queryByText(/garage cleanup/i)).not.toBeInTheDocument()
+    })
   })
 
   it('renders the fallback before the breakdown exists (Defining)', () => {

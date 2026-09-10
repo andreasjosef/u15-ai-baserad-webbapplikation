@@ -51,6 +51,7 @@ function TaskBreakdownReviewRoute() {
   const initial = Route.useLoaderData()
   const [phase, setPhase] = useState<Phase>(initial.phase)
   const [projectTitle, setProjectTitle] = useState<string | null>(initial.projectTitle)
+  const [todoistProjectId, setTodoistProjectId] = useState<string | null>(initial.todoistProjectId)
   const [tasks, setTasks] = useState<Array<TaskRow>>(initial.tasks)
   const [pending, setPending] = useState(false)
 
@@ -61,6 +62,7 @@ function TaskBreakdownReviewRoute() {
     if (breakdown.ok) {
       setPhase(breakdown.phase)
       setProjectTitle(breakdown.projectTitle)
+      setTodoistProjectId(breakdown.todoistProjectId)
       setTasks(breakdown.tasks)
       return null
     }
@@ -113,17 +115,23 @@ function TaskBreakdownReviewRoute() {
     }
   }
 
-  // Confirming the reviewed breakdown: on success the Phase moves to
-  // Completed locally — the server's `todoist_project_id` write is the
-  // durable source of that read, and the route re-reads it on every
-  // load. A failure returns the message; the table is untouched, so
-  // confirming again is the retry.
+  // Confirming the reviewed breakdown (issues #26, #110): on success the
+  // route re-reads the breakdown so the Completed receipt carries the
+  // Todoist project id the confirm just wrote — the server is the
+  // durable source of that read, and the Phase only flips once it
+  // confirms Completed (so the receipt's project link can never render
+  // without a real id). A failed re-sync returns its message and leaves
+  // the table untouched, so confirming again is the retry — a repeat
+  // confirm is a no-op success on the server.
   async function handleConfirmTask(): Promise<TaskActionResult> {
     setPending(true)
     try {
       const result = await confirmTaskBreakdown({ data: { sessionId } })
       if (result.ok) {
-        setPhase('Completed')
+        const failure = await loadBreakdown()
+        if (failure !== null) {
+          return { ok: false, message: failure }
+        }
       }
       return result
     } catch {
@@ -137,6 +145,7 @@ function TaskBreakdownReviewRoute() {
     <TaskBreakdown
       phase={phase}
       projectTitle={projectTitle}
+      todoistProjectId={todoistProjectId}
       tasks={tasks}
       pending={pending}
       onUpdateTask={handleUpdateTask}

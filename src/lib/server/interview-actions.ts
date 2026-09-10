@@ -230,7 +230,17 @@ export interface TaskRowView {
 }
 
 export type TaskBreakdownResult =
-  | { ok: true; phase: Phase; projectTitle: string | null; tasks: Array<TaskRowView> }
+  | {
+      ok: true
+      phase: Phase
+      projectTitle: string | null
+      // The Todoist project created by the confirm step (issue #110) —
+      // non-null exactly when the Phase is Completed. Already queried
+      // for the Phase derivation; returned now so the Completed receipt
+      // can link to the project.
+      todoistProjectId: string | null
+      tasks: Array<TaskRowView>
+    }
   | { ok: false; message: string }
 
 export type TaskActionResult = { ok: true } | { ok: false; message: string }
@@ -288,6 +298,7 @@ export const getTaskBreakdown = createServerFn({ method: 'POST' })
         ok: true,
         phase: derivePhase(toolRows, sessionRow?.todoistProjectId ?? null),
         projectTitle: sessionRow?.projectTitle ?? null,
+        todoistProjectId: sessionRow?.todoistProjectId ?? null,
         tasks: rows.map((row) => ({
           id: row.id,
           title: row.title,
