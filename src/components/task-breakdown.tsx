@@ -13,7 +13,7 @@
 // suppression (Proposed or Completed) stays in exactly one place.
 import type { ReactNode } from 'react'
 
-import { CheckCircle2 } from 'lucide-react'
+import { CheckCircle2, ExternalLinkIcon } from 'lucide-react'
 
 import type { Phase } from '../lib/phase.ts'
 import type { TaskEditInput } from '../lib/task-input.ts'
@@ -111,6 +111,7 @@ export function TaskBreakdown({
           className="inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-4 hover:underline"
         >
           Open your project in Todoist
+          <ExternalLinkIcon aria-hidden="true" className="size-3.5" />
         </a>
       </div>
     )

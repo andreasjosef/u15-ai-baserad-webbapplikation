@@ -123,8 +123,9 @@ describe('TaskBreakdown', () => {
       expect(receipt.querySelector('svg.lucide-circle-check')).toBeInTheDocument()
       expect(within(receipt).getByRole('heading', { name: 'Wrapped up' })).toBeInTheDocument()
       // The prototype's bare centered column: no boxed-card treatment,
-      // content center-aligned with the review screen's breathing room.
-      expect(receipt).toHaveClass('items-center')
+      // content center-aligned with the prototype's py-10 breathing
+      // room from the top of the viewport.
+      expect(receipt).toHaveClass('items-center', 'py-10')
       expect(receipt).not.toHaveClass('border')
       expect(receipt).not.toHaveClass('bg-card')
       expect(screen.queryByRole('button', { name: /todoist/i })).not.toBeInTheDocument()
