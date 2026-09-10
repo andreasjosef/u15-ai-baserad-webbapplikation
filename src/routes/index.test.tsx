@@ -28,6 +28,19 @@ describe('HomePage', () => {
     ).toBeInTheDocument()
   })
 
+  // Issue #104: the header pairs the logo mark with the "Hone" heading.
+  // The mark is decorative — the heading carries the accessible name —
+  // so it must not change the heading's name.
+  it('pairs the header heading with the logo mark', () => {
+    renderHomePage()
+
+    const heading = screen.getByRole('heading', { level: 1, name: 'Hone' })
+    const mark = heading.previousElementSibling
+    expect(mark).not.toBeNull()
+    expect(mark?.tagName.toLowerCase()).toBe('svg')
+    expect(mark).toHaveAttribute('aria-hidden', 'true')
+  })
+
   it('offers a way to start an interview', () => {
     const { onStartInterview } = renderHomePage()
 

@@ -4,6 +4,7 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 
+import { Logo } from '@/components/logo'
 import { Button } from '@/components/ui/button'
 
 import type { AuthResult } from '../lib/auth-result.ts'
@@ -67,7 +68,13 @@ export function HomePage({
   return (
     <div className="min-h-screen bg-muted/40">
       <header className="flex items-center justify-between border-b border-border bg-background px-6 py-4">
-        <h1 className="font-heading text-lg font-semibold tracking-[0.2em] uppercase">Hone</h1>
+        {/* Issue #104: the Hone logo mark beside the app name — sized to
+            the header's type scale, and decorative (the heading carries
+            the accessible name). */}
+        <div className="flex items-center gap-2">
+          <Logo className="size-5 shrink-0" />
+          <h1 className="font-heading text-lg font-semibold tracking-[0.2em] uppercase">Hone</h1>
+        </div>
         <div className="flex items-center gap-2">
           <Button type="button" variant="ghost" size="sm" onClick={onOpenSettings} className="rounded-md">
             Account settings
