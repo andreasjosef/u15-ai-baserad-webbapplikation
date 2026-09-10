@@ -44,10 +44,11 @@ the tasks inside it.
 src/
   routes/            TanStack Router file routes. Thin: a beforeLoad/loader
                      guard, local state, and calls into server functions.
-                     index, login, signup, settings, api/auth/$ (Better Auth
-                     mount), and a pathless `_shell` layout wrapping
-                     _shell/{interview, interview_.$sessionId, history} — the
-                     post-login screens the nav shell renders around.
+                     index, login, signup, api/auth/$ (Better Auth mount),
+                     and a pathless `_shell` layout wrapping
+                     _shell/{interview, interview_.$sessionId, history,
+                     settings} — the post-login screens the nav shell
+                     renders around.
   components/         Presentational React. Rendered by routes, and directly
                      by their own tests without a router context.
   lib/               Pure, environment-free logic — validation, Phase

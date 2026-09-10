@@ -62,7 +62,10 @@ function ShellLayout() {
         void navigate({ to: '/' })
       }}
       onOpenSettings={() => {
-        void navigate({ to: '/settings' })
+        // Issue #135: settings now lives under this layout, and its
+        // back-link returns to the referrer — so the entry point passes
+        // the current path along as the `from` search param.
+        void navigate({ to: '/settings', search: { from: pathname } })
       }}
     >
       <Outlet />
