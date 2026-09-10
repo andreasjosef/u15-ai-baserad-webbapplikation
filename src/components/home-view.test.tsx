@@ -66,6 +66,17 @@ describe('HomePage (logged in)', () => {
     expect(mark).toHaveAttribute('aria-hidden', 'true')
   })
 
+  // Issue #134: the header mark grows one size tier (size-5 → size-6) —
+  // class membership is the only observable, jsdom having no layout.
+  it('renders the header logo mark at the larger size tier', () => {
+    renderHomePage()
+
+    const heading = screen.getByRole('heading', { level: 1, name: 'Hone' })
+    const mark = heading.previousElementSibling
+    expect(mark).toHaveClass('size-6')
+    expect(mark).not.toHaveClass('size-5')
+  })
+
   it('offers a way to start an interview', () => {
     const { onStartInterview } = renderHomePage()
 

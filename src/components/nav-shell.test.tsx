@@ -144,6 +144,33 @@ describe('NavShell', () => {
     expect(drawerLink).toHaveTextContent('Hone')
   })
 
+  // Issue #134: the wordmark's mark grows one size tier (size-4 →
+  // size-5) in the expanded sidebar, the mobile top bar, and the drawer.
+  // The collapsed rail is pinned back to its current size via the
+  // breakpoint-scoped override — it has zero pixel slack against the
+  // 32px collapse toggle in the rail's 48px content width. Class
+  // membership is the only observable, jsdom having no layout.
+  it('renders the wordmark mark one size tier larger, pinned back down in the collapsed rail', () => {
+    renderShell()
+
+    for (const link of [
+      sidebar().getByRole('link', { name: 'Hone' }),
+      within(screen.getByRole('banner')).getByRole('link', { name: 'Hone' }),
+      openDrawer().getByRole('link', { name: 'Hone' }),
+    ]) {
+      const mark = link.querySelector('svg')
+      expect(mark).toHaveClass('size-5')
+      expect(mark).not.toHaveClass('size-4')
+    }
+  })
+
+  it("keeps the collapsed rail's logo at its current size via the breakpoint-scoped override", () => {
+    renderShell()
+    expect(sidebar().getByRole('link', { name: 'Hone' }).querySelector('svg')).toHaveClass(
+      'lg:sidebar-collapsed:size-4',
+    )
+  })
+
   it('navigates home when a wordmark link is clicked', () => {
     const { onNavigateHome, onNavigate } = renderShell()
     fireEvent.click(within(screen.getByRole('banner')).getByRole('link', { name: 'Hone' }))

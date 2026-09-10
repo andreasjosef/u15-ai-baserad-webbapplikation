@@ -43,9 +43,9 @@ export function HomePage({
       <header className="flex items-center justify-between border-b border-border bg-background px-6 py-4">
         {/* Issue #104: the Hone logo mark beside the app name — sized to
             the header's type scale, and decorative (the heading carries
-            the accessible name). */}
+            the accessible name). Issue #134: one size tier larger. */}
         <div className="flex items-center gap-2">
-          <Logo className="size-5 shrink-0" />
+          <Logo className="size-6 shrink-0" />
           <h1 className="font-heading text-lg font-semibold tracking-[0.2em] uppercase">Hone</h1>
         </div>
         {user ? (

@@ -92,9 +92,12 @@ const HOME_HREF = '/'
 
 // Issue #104: the logo mark is decorative everywhere the wordmark renders
 // (the adjacent "Hone" text, or this explicit label, carries the name), so
-// it's sized by the caller — `size-4` fits the collapsed rail's 48px
-// content width flush against the 32px collapse toggle.
-const WORDMARK_LOGO_CLASS = 'size-4 shrink-0'
+// it's sized by the caller. Issue #134: one size tier larger expanded
+// (`size-5`) — but pinned back to its current `size-4` in the collapsed
+// rail, whose 48px content width has zero pixel slack against the 32px
+// collapse toggle. Pure CSS via the breakpoint-scoped variant, so the
+// choice is correct before hydration (issue #102's rule).
+const WORDMARK_LOGO_CLASS = 'size-5 shrink-0 lg:sidebar-collapsed:size-4'
 
 function Wordmark({
   className,
