@@ -1,15 +1,20 @@
-// Tests for the Task Breakdown review cards (issues #25, #69). The
-// component is pure — persistence arrives as injected callbacks returning
-// a discriminated union, so the whole editing flow renders without a
-// router, db, or network. Editing never touches Todoist: it only calls
-// back, and failures surface as retryable alerts (plan.md §10).
+// Tests for the Task Breakdown review screen (issues #25, #69, #109).
+// The component is pure — persistence arrives as injected callbacks
+// returning a discriminated union, so the whole editing flow renders
+// without a router, db, or network. Editing never touches Todoist: it
+// only calls back, and failures surface as retryable alerts (plan.md
+// §10).
 //
-// One card per task in a role="list" grid (mockup 3's card treatment);
-// the add-task draft is a trailing visually-distinct listitem.
+// Direction C's grouped layout: tasks in priority sections (Urgent →
+// High → Medium → Normal, empty ones not rendered), each row carrying a
+// `#n` chip for its overall flat-list position; the add-task draft is a
+// trailing, ungrouped card.
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { TaskReview, type TaskRow } from './task-review.tsx'
+import type { TaskEditInput } from '../lib/task-input.ts'
 
 const rows: Array<TaskRow> = [
   { id: 't1', title: 'Clear out old boxes', description: 'The green bags', priority: 'high', dueString: 'this weekend' },
@@ -30,8 +35,33 @@ function cardFor(name: string | RegExp) {
   return within(card)
 }
 
+// A priority section, addressed by its label (the <section aria-label>).
+function sectionFor(priority: string | RegExp) {
+  return within(screen.getByRole('region', { name: priority }))
+}
+
 function draftCard() {
-  return within(screen.getByRole('listitem', { name: /add a task/i }))
+  return within(screen.getByRole('group', { name: /add a task/i }))
+}
+
+// The review route's optimistic-update wiring, so a priority change
+// re-renders with the task in its new section, exactly like production.
+function TaskReviewHarness({ initialTasks }: { initialTasks: Array<TaskRow> }) {
+  const [tasks, setTasks] = useState(initialTasks)
+  async function onUpdateTask(taskId: string, task: TaskEditInput) {
+    setTasks((current) => current.map((row) => (row.id === taskId ? { ...row, ...task } : row)))
+    return { ok: true } as const
+  }
+  return (
+    <TaskReview
+      projectTitle="Garage cleanup"
+      tasks={tasks}
+      pending={false}
+      onUpdateTask={onUpdateTask}
+      onAddTask={vi.fn().mockResolvedValue({ ok: true })}
+      onRemoveTask={vi.fn().mockResolvedValue({ ok: true })}
+    />
+  )
 }
 
 describe('TaskReview', () => {
@@ -39,17 +69,116 @@ describe('TaskReview', () => {
     vi.clearAllMocks()
   })
 
-  it('renders the project title and one editable card per task', () => {
+  it('renders the project title and one editable row per task', () => {
     render(<TaskReview {...baseProps} />)
     expect(screen.getByRole('heading', { name: /garage cleanup/i })).toBeInTheDocument()
-    expect(screen.getAllByRole('listitem')).toHaveLength(3) // 2 tasks + add card
-    expect(screen.getByRole('list')).toBeInTheDocument()
+    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+    expect(screen.getAllByRole('list').length).toBeGreaterThan(0)
 
     const first = cardFor(/clear out old boxes/i)
     expect((first.getByLabelText(/title/i) as HTMLInputElement).value).toBe('Clear out old boxes')
     expect((first.getByLabelText(/description/i) as HTMLInputElement).value).toBe('The green bags')
     expect((first.getByLabelText(/priority/i) as HTMLSelectElement).value).toBe('high')
     expect((first.getByLabelText(/due/i) as HTMLInputElement).value).toBe('this weekend')
+  })
+
+  it('groups tasks into Urgent, High, Medium, Normal sections in that fixed order', () => {
+    render(
+      <TaskReview
+        {...baseProps}
+        tasks={[
+          { id: 't1', title: 'First', description: null, priority: 'normal', dueString: null },
+          { id: 't2', title: 'Second', description: null, priority: 'urgent', dueString: null },
+          { id: 't3', title: 'Third', description: null, priority: 'medium', dueString: null },
+          { id: 't4', title: 'Fourth', description: null, priority: 'high', dueString: null },
+        ]}
+      />,
+    )
+    const sections = screen.getAllByRole('region').map((region) => region.getAttribute('aria-label'))
+    expect(sections).toEqual(['Urgent', 'High', 'Medium', 'Normal'])
+  })
+
+  it('renders a priority section only when it has tasks, with a pluralized count', () => {
+    render(
+      <TaskReview
+        {...baseProps}
+        tasks={[
+          { id: 't1', title: 'First', description: null, priority: 'high', dueString: null },
+          { id: 't2', title: 'Second', description: null, priority: 'high', dueString: null },
+          { id: 't3', title: 'Third', description: null, priority: 'normal', dueString: null },
+        ]}
+      />,
+    )
+    expect(screen.getByRole('region', { name: 'High' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Normal' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Urgent' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Medium' })).not.toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'High' })).getByText('2 tasks')).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Normal' })).getByText('1 task')).toBeInTheDocument()
+  })
+
+  it('renders each section heading with a decorative color dot before the label', () => {
+    render(<TaskReview {...baseProps} />)
+    // The colors themselves are locked in task-priority-groups.test.ts;
+    // here the heading is read structurally: dot, then label, then count.
+    for (const label of ['High', 'Normal']) {
+      const heading = within(screen.getByRole('region', { name: label })).getByRole('heading', { name: label })
+      expect(heading.previousElementSibling).toHaveAttribute('aria-hidden', 'true')
+    }
+  })
+
+  it('shows a task in the section matching its priority', () => {
+    render(<TaskReview {...baseProps} />)
+    expect(sectionFor('High').getByRole('listitem', { name: /clear out old boxes/i })).toBeInTheDocument()
+    expect(sectionFor('Normal').getByRole('listitem', { name: /take donations/i })).toBeInTheDocument()
+  })
+
+  it('numbers each task with a #n chip matching its overall flat-list order', () => {
+    render(
+      <TaskReview
+        {...baseProps}
+        tasks={[
+          { id: 't1', title: 'First', description: null, priority: 'normal', dueString: null },
+          { id: 't2', title: 'Second', description: null, priority: 'urgent', dueString: null },
+        ]}
+      />,
+    )
+    // The Urgent section lists Second first, but the chip shows the
+    // overall flat position: Second is #2.
+    expect(cardFor(/first/i).getByText('#1')).toBeInTheDocument()
+    expect(cardFor(/second/i).getByText('#2')).toBeInTheDocument()
+  })
+
+  it('recomputes the #n chips from the tasks prop as tasks are removed', () => {
+    const { rerender } = render(
+      <TaskReview
+        {...baseProps}
+        tasks={[
+          { id: 't1', title: 'First', description: null, priority: 'normal', dueString: null },
+          { id: 't2', title: 'Second', description: null, priority: 'normal', dueString: null },
+        ]}
+      />,
+    )
+    expect(cardFor(/second/i).getByText('#2')).toBeInTheDocument()
+    rerender(
+      <TaskReview
+        {...baseProps}
+        tasks={[{ id: 't2', title: 'Second', description: null, priority: 'normal', dueString: null }]}
+      />,
+    )
+    expect(cardFor(/second/i).getByText('#1')).toBeInTheDocument()
+  })
+
+  it('moves a task to its new section immediately when its priority changes', async () => {
+    render(<TaskReviewHarness initialTasks={rows} />)
+    const select = cardFor(/take donations/i).getByLabelText(/priority/i)
+    fireEvent.change(select, { target: { value: 'urgent' } })
+
+    await waitFor(() =>
+      expect(sectionFor('Urgent').getByRole('listitem', { name: /take donations/i })).toBeInTheDocument(),
+    )
+    // Normal had only this task, so its empty section is gone entirely.
+    expect(screen.queryByRole('region', { name: 'Normal' })).not.toBeInTheDocument()
   })
 
   it('renames a task on blur, through onUpdateTask with the full edited payload', async () => {
