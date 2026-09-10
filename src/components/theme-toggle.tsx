@@ -36,6 +36,9 @@ export function ThemeToggle({ collapsed = false }: { collapsed?: boolean }) {
   const ariaLabel = switchModeLabel(isDark)
 
   if (collapsed) {
+    // Issue #120: a fixed-size `size="icon"` button can't stretch across
+    // the rail like the Settings row's unsized button does, so it centers
+    // itself explicitly to line up with the Settings icon above it.
     return (
       <Button
         type="button"
@@ -45,6 +48,7 @@ export function ThemeToggle({ collapsed = false }: { collapsed?: boolean }) {
         aria-pressed={isDark}
         aria-label={ariaLabel}
         title={ariaLabel}
+        className="mx-auto"
       >
         {isDark ? <MoonIcon aria-hidden="true" /> : <SunIcon aria-hidden="true" />}
       </Button>

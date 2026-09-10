@@ -228,6 +228,24 @@ describe('NavShell', () => {
     expect(screen.getByRole('dialog').querySelector('.border-t.border-border')).not.toBeNull()
   })
 
+  // Issue #120: the bottom block pins to the bottom edge of the sidebar
+  // and the drawer — `mt-auto` (the SheetFooter idiom) absorbs any
+  // leftover column space above the divider, so the Settings/theme rows
+  // never float mid-column. jsdom does no layout, so the pin is asserted
+  // as the class that produces it, in both placements.
+  it('pins the Settings/theme block to the bottom edge of the sidebar and the drawer', () => {
+    renderShell()
+    const sidebarDivider = screen
+      .getByRole('complementary')
+      .querySelector('.border-t.border-border')
+    expect(sidebarDivider).toHaveClass('mt-auto')
+
+    openDrawer()
+    expect(screen.getByRole('dialog').querySelector('.border-t.border-border')).toHaveClass(
+      'mt-auto',
+    )
+  })
+
   it('opens the drawer from a labeled trigger and closes it when a drawer row is picked', async () => {
     const { onNavigate } = renderShell()
 

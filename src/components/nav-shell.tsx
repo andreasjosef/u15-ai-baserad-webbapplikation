@@ -263,6 +263,11 @@ function SettingsRow({
 // select handler are injected so the two placements can differ (the
 // drawer's also closes itself), and `collapsible` follows the sidebar
 // (the drawer never collapses, issue #102).
+//
+// Issue #120: `mt-auto` pins the block to the bottom edge of both
+// containers (both are `flex flex-col`) — the same idiom SheetFooter
+// uses — so leftover vertical space sits between the nav rows and the
+// divider rather than below the theme toggle.
 function BottomRows({
   settingsActive,
   onOpenSettings,
@@ -275,7 +280,7 @@ function BottomRows({
   themeToggle: ReactNode
 }) {
   return (
-    <div className="flex flex-col gap-1 border-t border-border pt-4">
+    <div className="mt-auto flex flex-col gap-1 border-t border-border pt-4">
       <SettingsRow active={settingsActive} onSelect={onOpenSettings} collapsible={collapsible} />
       {themeToggle}
     </div>
