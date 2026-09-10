@@ -133,9 +133,6 @@ transkriptet plus `todoist_project_id`.
 - **Intervjun är enkelsittning.** En session körs klart i ett svep — det finns
   ingen "återuppta"-ingång. En avbruten intervju startas om som en ny session
   (`docs/plan.md` §13).
-- **Deployad demo kräver miljövariabel.** `OPENROUTER_API_KEY` är ännu inte
-  pushad till Vercels miljö (issue #49), så intervjun fungerar för närvarande
-  bara lokalt.
 - **Bar visuell design.** MVP-skärmarna är handskriven Tailwind utan
   designsystem; en omstylning pågår som eget spår (issues #63–#69).
 - **Övriga kända tekniska skulder:** route-filer exporterar icke-Route-
