@@ -11,16 +11,21 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { THEME_STORAGE_KEY } from '../lib/theme.ts'
 import { SIDEBAR_STORAGE_KEY } from '../lib/sidebar.ts'
 import { NavShell, type NavItemId } from './nav-shell.tsx'
 
-function renderShell(currentItem?: NavItemId) {
+function renderShell({
+  currentItem,
+  settingsActive,
+}: { currentItem?: NavItemId; settingsActive?: boolean } = {}) {
   const onNavigate = vi.fn()
   const onNavigateHome = vi.fn()
   const onOpenSettings = vi.fn()
   render(
     <NavShell
       currentItem={currentItem}
+      settingsActive={settingsActive}
       onNavigate={onNavigate}
       onNavigateHome={onNavigateHome}
       onOpenSettings={onOpenSettings}
@@ -73,13 +78,13 @@ describe('NavShell', () => {
   })
 
   it('highlights the row matching currentItem via aria-current', () => {
-    renderShell('history')
+    renderShell({ currentItem: 'history' })
     expect(sidebar().getByRole('button', { name: 'History' })).toHaveAttribute('aria-current', 'page')
     expect(sidebar().getByRole('button', { name: 'Interview' })).not.toHaveAttribute('aria-current')
   })
 
   it('highlights the Interview row when it is the current item (issue #100)', () => {
-    renderShell('interview')
+    renderShell({ currentItem: 'interview' })
     expect(sidebar().getByRole('button', { name: 'Interview' })).toHaveAttribute('aria-current', 'page')
     expect(sidebar().getByRole('button', { name: 'History' })).not.toHaveAttribute('aria-current')
   })
@@ -155,22 +160,72 @@ describe('NavShell', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
-  it('fires onOpenSettings from the top-bar Settings icon', () => {
+  // Issue #117: Settings leaves the top bar for a NavRow-styled row at the
+  // bottom of the sidebar and the drawer — it fires onOpenSettings in both,
+  // and the drawer's row closes the drawer like every other drawer row.
+  it('fires onOpenSettings from the sidebar Settings row', () => {
     const { onOpenSettings } = renderShell()
-    fireEvent.click(screen.getByRole('button', { name: /settings/i }))
+    fireEvent.click(sidebar().getByRole('button', { name: 'Settings' }))
     expect(onOpenSettings).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps Settings out of both the sidebar and the drawer navs', () => {
-    renderShell()
-    expect(sidebar().queryByRole('button', { name: /settings/i })).not.toBeInTheDocument()
-    expect(openDrawer().queryByRole('button', { name: /settings/i })).not.toBeInTheDocument()
+  it('fires onOpenSettings from the drawer Settings row and closes the drawer', async () => {
+    const { onOpenSettings } = renderShell()
+    openDrawer()
+
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Settings' }))
+    expect(onOpenSettings).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
-  it('shows the theme toggle in the top bar beside Settings (issue #83)', () => {
+  it('highlights the Settings row via aria-current when settingsActive is true', () => {
+    renderShell({ settingsActive: true })
+    expect(sidebar().getByRole('button', { name: 'Settings' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    // The nav rows stay unhighlighted — Settings is not a NavItemId.
+    expect(sidebar().getByRole('button', { name: 'Interview' })).not.toHaveAttribute('aria-current')
+    expect(openDrawer().getByRole('button', { name: 'Settings' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+  })
+
+  it('marks no row with aria-current when settingsActive is undefined', () => {
     renderShell()
-    expect(screen.getByRole('switch')).toBeInTheDocument()
-    expect(sidebar().queryByRole('switch')).not.toBeInTheDocument()
+    expect(sidebar().getByRole('button', { name: 'Settings' })).not.toHaveAttribute('aria-current')
+    expect(openDrawer().getByRole('button', { name: 'Settings' })).not.toHaveAttribute(
+      'aria-current',
+    )
+  })
+
+  // Issue #117: the theme toggle and Settings relocate from the top bar
+  // into the sidebar and the drawer; the top bar keeps only the hamburger
+  // and the mobile wordmark.
+  it('shows the theme toggle in the sidebar and the drawer, never in the top bar', () => {
+    renderShell()
+    expect(sidebar().getByRole('switch')).toBeInTheDocument()
+    // The top bar keeps only the hamburger and the wordmark (queried
+    // before opening the drawer, which aria-hides everything outside it).
+    expect(within(screen.getByRole('banner')).queryByRole('switch')).not.toBeInTheDocument()
+    expect(within(screen.getByRole('banner')).queryByRole('button', { name: /settings/i })).not.toBeInTheDocument()
+    expect(openDrawer().getByRole('switch')).toBeInTheDocument()
+  })
+
+  // jsdom does no CSS, so the divider between the main NavList and the
+  // Settings/theme rows is asserted as the border treatment itself — the
+  // same `border-border` token the header's `border-b` and the aside's
+  // `border-r` already use.
+  it('separates the nav rows from the Settings/theme rows with a divider', () => {
+    renderShell()
+    const sidebarDivider = screen
+      .getByRole('complementary')
+      .querySelector('.border-t.border-border')
+    expect(sidebarDivider).not.toBeNull()
+
+    openDrawer()
+    expect(screen.getByRole('dialog').querySelector('.border-t.border-border')).not.toBeNull()
   })
 
   it('opens the drawer from a labeled trigger and closes it when a drawer row is picked', async () => {
@@ -195,7 +250,7 @@ describe('NavShell', () => {
   })
 
   it('highlights the current row inside the drawer too', () => {
-    renderShell('history')
+    renderShell({ currentItem: 'history' })
     expect(openDrawer().getByRole('button', { name: 'History' })).toHaveAttribute(
       'aria-current',
       'page',
@@ -213,6 +268,7 @@ describe('NavShell', () => {
 describe('NavShell collapsible sidebar (issue #102)', () => {
   beforeEach(() => {
     document.documentElement.classList.remove('sidebar-collapsed')
+    document.documentElement.classList.remove('dark')
     localStorage.clear()
   })
 
@@ -313,6 +369,23 @@ describe('NavShell collapsible sidebar (issue #102)', () => {
       'title',
       'Interview',
     )
+  })
+
+  // Issue #117: in the collapsed icon rail the theme toggle renders as
+  // its collapsed icon-button variant (`role="button"` with
+  // `aria-pressed`, not `role="switch"`) — the ThemeToggle `collapsed`
+  // prop from issue #116 — and still toggles the theme.
+  it('renders the theme toggle as an aria-pressed icon button in the collapsed rail and toggles the theme', () => {
+    renderShell()
+    fireEvent.click(sidebar().getByRole('button', { name: 'Collapse sidebar' }))
+
+    const toggle = sidebar().getByRole('button', { name: /switch to (dark|light) mode/i })
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    expect(sidebar().queryByRole('switch')).not.toBeInTheDocument()
+
+    fireEvent.click(toggle)
+    expect(document.documentElement.classList.contains('dark')).toBe(true)
+    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('dark')
   })
 
   it('leaves the drawer untouched by the collapsed state', () => {

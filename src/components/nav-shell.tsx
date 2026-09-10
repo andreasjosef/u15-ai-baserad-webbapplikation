@@ -19,9 +19,17 @@
 // thing deciding which is visible. Nav rows are Interview and History
 // only — History already covers "my todos", so there is no separate row
 // for it, and Home is reached through the wordmark link instead of a row
-// (issue #100). Settings is a persistent top-bar icon, never a nav row
-// (issue #63's nav-content decision), and takes the user to `/settings`
-// unchanged.
+// (issue #100). Settings is not a nav row: it renders as a Settings-icon
+// row, styled like a NavRow, at the bottom of the sidebar and the drawer.
+//
+// Decision log (issue #115): this layout supersedes two earlier
+// decisions. #63's "Settings is a persistent top-bar icon, never a nav
+// row" and #83's "self-contained `ThemeToggle` in the top bar" are both
+// withdrawn — the persistent header is gone entirely at `lg`+, and
+// Settings and the theme toggle now live in rows at the bottom of the
+// sidebar (and the drawer standing in for it below `lg`), separated from
+// the main nav rows by a divider. Settings still takes the user to
+// `/settings` unchanged, and the theme toggle is still self-contained.
 //
 // Since issue #102 the permanent sidebar is also collapsible to an
 // icon-only rail: a toggle in its top row flips a `sidebar-collapsed`
@@ -130,6 +138,11 @@ export interface NavShellProps {
   // the Task Breakdown review, 'history' for History, and `undefined`
   // for anything else (no row highlighted).
   currentItem?: NavItemId
+  // Issue #117: whether the Settings row should show the active-page
+  // treatment (`aria-current="page"`). The layout route computes it from
+  // the pathname — Settings is not a `NavItemId`, so it can't flow
+  // through `currentItem`.
+  settingsActive?: boolean
   // Fired with the chosen row's id — the layout route turns it into a
   // real navigation. A drawer row also closes the drawer as part of the
   // same click (see `handleDrawerNavigate`).
@@ -137,8 +150,9 @@ export interface NavShellProps {
   // Fired by the wordmark link's plain clicks — the layout route
   // navigates to the standalone Home page (`/`) client-side.
   onNavigateHome: () => void
-  // Fired by the persistent top-bar Settings icon; the layout route
-  // navigates to the existing `/settings` route unchanged.
+  // Fired by the Settings row at the bottom of the sidebar and the
+  // drawer; the layout route navigates to the existing `/settings`
+  // route unchanged.
   onOpenSettings: () => void
   children: ReactNode
 }
@@ -206,8 +220,71 @@ function NavList({
   )
 }
 
+// Issue #117: the Account Settings row at the bottom of the sidebar and
+// the drawer. Deliberately a separate component rather than a member of
+// `NAV_ITEMS` — Settings is not a `NavItemId` (there is no
+// `NAV_DESTINATIONS` entry for it; the layout route owns `/settings`) —
+// but it mirrors NavRow's markup and classes verbatim so it reads as a
+// sibling row. Same props pattern too: `active` drives
+// `aria-current="page"`, and `collapsible` gives the collapsed rail a
+// static `title` exactly as `NavRow` does (issue #102).
+function SettingsRow({
+  active,
+  onSelect,
+  collapsible = false,
+}: {
+  active: boolean
+  onSelect: () => void
+  collapsible?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-current={active ? 'page' : undefined}
+      title={collapsible ? 'Settings' : undefined}
+      className={`flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors lg:sidebar-collapsed:justify-center ${
+        active
+          ? 'bg-accent text-accent-foreground'
+          : 'text-foreground hover:bg-muted hover:text-foreground'
+      }`}
+    >
+      <SettingsIcon className="size-4" aria-hidden="true" />
+      <span className="lg:sidebar-collapsed:hidden">Settings</span>
+    </button>
+  )
+}
+
+// Issue #117: the shared bottom block of the sidebar and the drawer — a
+// divider separating the main nav rows from the Settings row and the
+// theme toggle, in that order, in both places. The theme toggle renders
+// collapsed only in the sidebar (the icon rail); the drawer never
+// collapses, so it always gets the row variant. The active state and
+// select handler are injected so the two placements can differ (the
+// drawer's also closes itself), and `collapsible` follows the sidebar
+// (the drawer never collapses, issue #102).
+function BottomRows({
+  settingsActive,
+  onOpenSettings,
+  collapsible = false,
+  themeToggle,
+}: {
+  settingsActive: boolean
+  onOpenSettings: () => void
+  collapsible?: boolean
+  themeToggle: ReactNode
+}) {
+  return (
+    <div className="flex flex-col gap-1 border-t border-border pt-4">
+      <SettingsRow active={settingsActive} onSelect={onOpenSettings} collapsible={collapsible} />
+      {themeToggle}
+    </div>
+  )
+}
+
 export function NavShell({
   currentItem,
+  settingsActive,
   onNavigate,
   onNavigateHome,
   onOpenSettings,
@@ -229,11 +306,16 @@ export function NavShell({
     onNavigate(item)
   }
 
-  // Same for the drawer's wordmark link; the sidebar's and top bar's
-  // have no drawer to close.
+  // Same for the drawer's wordmark link and its Settings row; the
+  // sidebar's have no drawer to close.
   function handleDrawerWordmarkClick() {
     setDrawerOpen(false)
     onNavigateHome()
+  }
+
+  function handleDrawerSettings() {
+    setDrawerOpen(false)
+    onOpenSettings()
   }
 
   return (
@@ -267,12 +349,25 @@ export function NavShell({
           </Button>
         </div>
         <NavList currentItem={currentItem} onSelect={onNavigate} collapsible />
+        {/* Issue #117: Settings and the theme toggle leave the top bar for
+            the sidebar's bottom — under a divider, below the main nav
+            rows. The theme toggle rides the collapsed rail as an icon
+            button (issue #116's `collapsed` prop). */}
+        <BottomRows
+          settingsActive={Boolean(settingsActive)}
+          onOpenSettings={onOpenSettings}
+          collapsible
+          themeToggle={<ThemeToggle collapsed={sidebarCollapsed} />}
+        />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Persistent top bar: the hamburger (below lg only) and the
-            Settings icon (always). */}
-        <header className="flex items-center gap-2 border-b border-border px-4 py-3">
+        {/* Issue #117: below lg a slim top bar holds only the hamburger
+            and the mobile wordmark; at lg and up the bar is hidden
+            entirely and the sidebar owns the chrome. The Settings icon
+            and the theme toggle that used to sit in the `ml-auto` group
+            are gone from here, not relocated within it. */}
+        <header className="flex items-center gap-2 border-b border-border px-4 py-3 lg:hidden">
           <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
             <SheetTrigger asChild>
               <Button
@@ -294,23 +389,19 @@ export function NavShell({
                 </SheetTitle>
               </SheetHeader>
               <NavList currentItem={currentItem} onSelect={handleDrawerNavigate} />
+              {/* Issue #117: the drawer mirrors the sidebar's bottom
+                  block — divider, Settings row, theme toggle, same
+                  order — and its Settings row closes the drawer like
+                  every other drawer row. */}
+              <BottomRows
+                settingsActive={Boolean(settingsActive)}
+                onOpenSettings={handleDrawerSettings}
+                themeToggle={<ThemeToggle />}
+              />
             </SheetContent>
           </Sheet>
 
           <Wordmark className="lg:hidden" onNavigateHome={onNavigateHome} />
-
-          <div className="ml-auto flex items-center gap-2">
-            <ThemeToggle />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={onOpenSettings}
-              aria-label="Settings"
-            >
-              <SettingsIcon aria-hidden="true" />
-            </Button>
-          </div>
         </header>
 
         {/* The screen itself renders its own <main> — the shell adds no

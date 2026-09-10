@@ -9,9 +9,10 @@
 // This is where the pure NavShell component (src/components/nav-shell.tsx)
 // gets its router wiring: the current section is derived from the
 // pathname, nav rows and the wordmark link become real navigations, and
-// the Settings icon goes to the existing `/settings` route unchanged. The
-// per-screen auth guards stay on the child routes — this layer adds no
-// `beforeLoad` of its own.
+// the Settings row (issue #117: now at the bottom of the sidebar/drawer,
+// no longer a top-bar icon) goes to the existing `/settings` route
+// unchanged. The per-screen auth guards stay on the child routes — this
+// layer adds no `beforeLoad` of its own.
 import { Outlet, createFileRoute, useLocation, useNavigate } from '@tanstack/react-router'
 
 import { NavShell, type NavItemId } from '../components/nav-shell.tsx'
@@ -43,9 +44,17 @@ function ShellLayout() {
         ? 'interview'
         : undefined
 
+  // Issue #117: the layout route knows when it's rendering `/settings`,
+  // so it computes the Settings row's active state here — Settings is not
+  // a `NavItemId`, so it can't flow through `currentItem`. The settings
+  // route is a single page, so an exact match is enough (same rule as
+  // History above).
+  const settingsActive = pathname === '/settings'
+
   return (
     <NavShell
       currentItem={currentItem}
+      settingsActive={settingsActive}
       onNavigate={(item) => {
         void navigate({ to: NAV_DESTINATIONS[item] })
       }}
