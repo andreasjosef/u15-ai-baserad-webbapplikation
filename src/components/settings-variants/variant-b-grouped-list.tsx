@@ -19,6 +19,7 @@ function Row({
   icon: Icon,
   title,
   status,
+  connected,
   expanded,
   onToggle,
   children,
@@ -26,6 +27,12 @@ function Row({
   icon: typeof KeyRoundIcon
   title: string
   status: string
+  // Small dot next to the status text: green once this integration is
+  // actively using a user-supplied credential, grey otherwise (no token,
+  // or — for OpenRouter — falling back to the shared team key). The text
+  // already says as much; the dot is a fast, at-a-glance echo of it, not
+  // a replacement.
+  connected: boolean
   expanded: boolean
   onToggle: () => void
   children: ReactNode
@@ -40,6 +47,10 @@ function Row({
       >
         <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         <span className="flex-1 text-sm font-medium">{title}</span>
+        <span
+          aria-hidden="true"
+          className={`size-2 shrink-0 rounded-full ${connected ? 'bg-emerald-500' : 'bg-muted-foreground/40'}`}
+        />
         <span className="text-xs text-muted-foreground">{status}</span>
         <ChevronDownIcon
           className={`size-4 shrink-0 text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`}
@@ -80,6 +91,7 @@ export function VariantB({
           icon={ListTodoIcon}
           title="Todoist"
           status={tokenSaved ? 'Connected' : 'Not connected'}
+          connected={tokenSaved}
           expanded={expandedRow === 'todoist'}
           onToggle={() => toggle('todoist')}
         >
@@ -94,6 +106,7 @@ export function VariantB({
           icon={KeyRoundIcon}
           title="OpenRouter key"
           status={usingOwnKey ? `Your key …${savedKeySuffix}` : 'Using shared team key'}
+          connected={usingOwnKey}
           expanded={expandedRow === 'openrouter'}
           onToggle={() => toggle('openrouter')}
         >
