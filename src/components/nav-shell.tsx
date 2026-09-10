@@ -26,9 +26,13 @@
 // Since issue #102 the permanent sidebar is also collapsible to an
 // icon-only rail: a toggle in its top row flips a `sidebar-collapsed`
 // class on `<html>` (via `useSidebar`, persisted like the theme), and the
-// collapsed visuals — narrow width, hidden labels, "H" wordmark mark —
+// collapsed visuals — narrow width, hidden labels, logo-only wordmark —
 // are pure `lg:sidebar-collapsed:*` CSS on the markup below. The drawer
 // is untouched: it only exists below `lg`, where collapse doesn't apply.
+//
+// Since issue #104 the wordmark's mark is the Hone logo (an inline SVG,
+// see src/components/logo.tsx) instead of bare text: expanded it pairs
+// with the "Hone" text, collapsed to the icon-only rail it stands alone.
 import { useState, type MouseEvent, type ReactNode } from 'react'
 
 import {
@@ -40,6 +44,7 @@ import {
   SettingsIcon,
 } from 'lucide-react'
 
+import { Logo } from '@/components/logo'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
 import {
@@ -77,6 +82,12 @@ const WORDMARK_CLASS =
 // instead of reloading. Modified clicks fall through to the browser.
 const HOME_HREF = '/'
 
+// Issue #104: the logo mark is decorative everywhere the wordmark renders
+// (the adjacent "Hone" text, or this explicit label, carries the name), so
+// it's sized by the caller — `size-4` fits the collapsed rail's 48px
+// content width flush against the 32px collapse toggle.
+const WORDMARK_LOGO_CLASS = 'size-4 shrink-0'
+
 function Wordmark({
   className,
   onNavigateHome,
@@ -96,21 +107,19 @@ function Wordmark({
     <a
       href={HOME_HREF}
       onClick={handleClick}
-      className={`${WORDMARK_CLASS}${className ? ` ${className}` : ''}`}
+      aria-label="Hone"
+      className={`${WORDMARK_CLASS}${className ? ` ${className}` : ''} flex items-center gap-2`}
     >
-      {/* Issue #102: in the collapsed rail the wordmark shrinks to a bare
-          "H" — same purple/heading treatment, inherited from the link.
-          Which mark shows is decided purely by CSS (`lg:sidebar-collapsed`
-          variants), so a persisted collapsed state renders correctly
-          before hydration; the accessible name therefore concatenates the
-          two marks in CSS-less environments (tests) but is correct —
-          "Hone" expanded, "H" collapsed — in a real browser. The link
-          itself never unmounts: issue #100's Home link must hold while
-          collapsed. */}
+      {/* Issues #102/#104: the mark is the logo both expanded and in the
+          collapsed rail — only the "Hone" text comes and goes, decided
+          purely by CSS (`lg:sidebar-collapsed` variants), so a persisted
+          collapsed state renders correctly before hydration. The mark is
+          aria-hidden; the link's explicit aria-label keeps its accessible
+          name "Hone" in the collapsed rail, where no visible text remains.
+          The link itself never unmounts: issue #100's Home link must hold
+          while collapsed. */}
+      <Logo className={WORDMARK_LOGO_CLASS} />
       <span className="lg:sidebar-collapsed:hidden">Hone</span>
-      <span className="hidden lg:sidebar-collapsed:inline lg:sidebar-collapsed:tracking-normal">
-        H
-      </span>
     </a>
   )
 }
@@ -238,7 +247,7 @@ export function NavShell({
       <aside className="hidden w-56 shrink-0 flex-col gap-8 border-r border-border bg-sidebar p-4 transition-[width,padding] duration-200 lg:flex lg:sidebar-collapsed:w-16 lg:sidebar-collapsed:px-2">
         {/* Issue #102: the top row holds the wordmark and the collapse
             toggle in the same spot in both states. In the collapsed rail's
-            48px content width the "H" mark and the 32px icon button only
+            48px content width the logo mark and the 32px icon button only
             fit flush, so the gap collapses with the sidebar. */}
         <div className="flex items-center justify-between gap-1 lg:sidebar-collapsed:gap-0">
           <Wordmark onNavigateHome={onNavigateHome} />

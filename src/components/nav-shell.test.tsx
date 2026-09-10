@@ -104,22 +104,44 @@ describe('NavShell', () => {
 
   // Issue #100: the wordmark is the Home link — a real link (`role="link"`,
   // `href="/"`) in all three places it renders, with plain clicks handed to
-  // the injected callback so the SPA navigates client-side. Since #102 the
-  // sidebar wordmark also carries a CSS-gated "H" mark for the collapsed
-  // rail, so the accessible name is the two marks concatenated in jsdom
-  // (which applies no CSS) — matched with a regex.
+  // the injected callback so the SPA navigates client-side. Since #104 the
+  // link is the logo mark + "Hone" text lockup; the mark is decorative
+  // (aria-hidden) and the link carries an explicit aria-label, so the
+  // accessible name is exactly "Hone" in every state.
   it('renders the wordmark as a Home link in the sidebar and the mobile top bar', () => {
     renderShell()
-    expect(sidebar().getByRole('link', { name: /hone/i })).toHaveAttribute('href', '/')
-    expect(within(screen.getByRole('banner')).getByRole('link', { name: /hone/i })).toHaveAttribute(
+    expect(sidebar().getByRole('link', { name: 'Hone' })).toHaveAttribute('href', '/')
+    expect(within(screen.getByRole('banner')).getByRole('link', { name: 'Hone' })).toHaveAttribute(
       'href',
       '/',
     )
   })
 
+  // Issue #104: the wordmark is the Hone logo mark beside the "Hone" text
+  // everywhere it renders — desktop sidebar, mobile top bar, and the
+  // drawer's SheetTitle; the mark carries no name of its own — the text
+  // (and the link's label) do.
+  it('pairs the logo mark with the Hone text in every wordmark lockup', () => {
+    renderShell()
+
+    for (const link of [
+      sidebar().getByRole('link', { name: 'Hone' }),
+      within(screen.getByRole('banner')).getByRole('link', { name: 'Hone' }),
+    ]) {
+      expect(link.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+      expect(link).toHaveTextContent('Hone')
+    }
+
+    // The drawer's SheetTitle is the third lockup.
+    const drawer = openDrawer()
+    const drawerLink = drawer.getByRole('link', { name: 'Hone' })
+    expect(drawerLink.querySelector('svg')).not.toBeNull()
+    expect(drawerLink).toHaveTextContent('Hone')
+  })
+
   it('navigates home when a wordmark link is clicked', () => {
     const { onNavigateHome, onNavigate } = renderShell()
-    fireEvent.click(within(screen.getByRole('banner')).getByRole('link', { name: /hone/i }))
+    fireEvent.click(within(screen.getByRole('banner')).getByRole('link', { name: 'Hone' }))
     expect(onNavigateHome).toHaveBeenCalledTimes(1)
     expect(onNavigate).not.toHaveBeenCalled()
   })
@@ -128,7 +150,7 @@ describe('NavShell', () => {
     const { onNavigateHome } = renderShell()
     openDrawer()
 
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('link', { name: /hone/i }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('link', { name: 'Hone' }))
     expect(onNavigateHome).toHaveBeenCalledTimes(1)
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
@@ -240,16 +262,20 @@ describe('NavShell collapsible sidebar (issue #102)', () => {
     expect(onNavigate).toHaveBeenCalledWith('interview')
   })
 
-  it('replaces the wordmark with an H mark while collapsed, still linking Home', () => {
+  // Issue #104: the collapsed rail shows the logo mark alone — the "H"
+  // letter fallback is gone. The mark stays decorative; the link carries
+  // the accessible name explicitly, since no visible text remains.
+  it('replaces the wordmark with the logo mark while collapsed, still linking Home', () => {
     const { onNavigateHome } = renderShell()
     fireEvent.click(sidebar().getByRole('button', { name: 'Collapse sidebar' }))
 
-    const mark = sidebar().getByRole('link', { name: /hone/i })
+    const mark = sidebar().getByRole('link', { name: 'Hone' })
     expect(mark).toHaveAttribute('href', '/')
-    // The collapsed "H" mark is present and gated on the collapsed state;
-    // the full wordmark is what the CSS hides (issue #100's Home link
-    // must hold in the collapsed state too).
-    expect(within(mark).getByText('H', { exact: true })).toHaveClass('lg:sidebar-collapsed:inline')
+    expect(mark).toHaveAttribute('aria-label', 'Hone')
+    // The mark is present and gated on the collapsed state; the "Hone"
+    // text is what the CSS hides (issue #100's Home link must hold in
+    // the collapsed state too).
+    expect(mark.querySelector('svg')).not.toBeNull()
     expect(within(mark).getByText('Hone')).toHaveClass('lg:sidebar-collapsed:hidden')
 
     fireEvent.click(mark)
@@ -297,6 +323,6 @@ describe('NavShell collapsible sidebar (issue #102)', () => {
     const drawer = openDrawer()
 
     expect(drawer.getByRole('button', { name: 'Interview' })).not.toHaveAttribute('title')
-    expect(drawer.getByRole('link', { name: /hone/i })).toHaveAttribute('href', '/')
+    expect(drawer.getByRole('link', { name: 'Hone' })).toHaveAttribute('href', '/')
   })
 })
