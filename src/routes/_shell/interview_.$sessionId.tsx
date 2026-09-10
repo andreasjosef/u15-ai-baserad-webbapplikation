@@ -19,6 +19,15 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 
+import {
+  PrototypeTaskEndingSwitcher,
+  validateTaskEndingSearch,
+} from '../../components/prototype-task-ending-switcher.tsx'
+import {
+  TaskEndingVariantA,
+  TaskEndingVariantB,
+  TaskEndingVariantC,
+} from '../../components/prototype-task-ending-variants.tsx'
 import { TaskBreakdown } from '../../components/task-breakdown.tsx'
 import type { TaskActionResult, TaskRow } from '../../components/task-review.tsx'
 import type { Phase } from '../../lib/phase.ts'
@@ -36,6 +45,11 @@ import { confirmTaskBreakdown } from '../../lib/server/todoist-creation-actions.
 import { getSession } from '../../lib/server/session.ts'
 
 export const Route = createFileRoute('/_shell/interview_/$sessionId')({
+  // PROTOTYPE search param (issue #107, prototype/README.md) — flips
+  // between today's shipped review/wrapped-up UI and three redesign
+  // directions for both. Remove alongside the rest of the prototype once
+  // a direction is picked or discarded.
+  validateSearch: validateTaskEndingSearch,
   beforeLoad: async () => {
     requireAuthSession(await getSession())
   },
@@ -49,9 +63,12 @@ export const Route = createFileRoute('/_shell/interview_/$sessionId')({
 function TaskBreakdownReviewRoute() {
   const { sessionId } = Route.useParams()
   const initial = Route.useLoaderData()
+  const variant = Route.useSearch().variant ?? 'current'
+  const navigateVariant = Route.useNavigate()
   const [phase, setPhase] = useState<Phase>(initial.phase)
   const [projectTitle, setProjectTitle] = useState<string | null>(initial.projectTitle)
   const [tasks, setTasks] = useState<Array<TaskRow>>(initial.tasks)
+  const [todoistProjectId, setTodoistProjectId] = useState<string | null>(initial.todoistProjectId)
   const [pending, setPending] = useState(false)
 
   // Returns the retryable failure message on error, null on success —
@@ -62,6 +79,7 @@ function TaskBreakdownReviewRoute() {
       setPhase(breakdown.phase)
       setProjectTitle(breakdown.projectTitle)
       setTasks(breakdown.tasks)
+      setTodoistProjectId(breakdown.todoistProjectId)
       return null
     }
     return breakdown.message
@@ -124,6 +142,11 @@ function TaskBreakdownReviewRoute() {
       const result = await confirmTaskBreakdown({ data: { sessionId } })
       if (result.ok) {
         setPhase('Completed')
+        // PROTOTYPE (issue #107): pick up the freshly written
+        // `todoist_project_id` so a Completed variant can link straight
+        // to the new project without a reload. Harmless under the
+        // shipped 'current' rendering, which never reads this state.
+        await loadBreakdown()
       }
       return result
     } catch {
@@ -133,16 +156,49 @@ function TaskBreakdownReviewRoute() {
     }
   }
 
+  // PROTOTYPE (issue #107): every direction renders through the same
+  // real callbacks as the shipped TaskBreakdown — only the JSX differs.
+  // `state` previews the Proposed layout or the Completed payoff
+  // independent of this Session's actual Phase, so both can be judged
+  // side by side without needing two Interviews in two different
+  // phases (prototype/README.md).
+  const variantProps = {
+    projectTitle,
+    tasks,
+    pending,
+    onUpdateTask: handleUpdateTask,
+    onAddTask: handleAddTask,
+    onRemoveTask: handleRemoveTask,
+    onConfirmTask: handleConfirmTask,
+    todoistProjectId,
+  }
+
   return (
-    <TaskBreakdown
-      phase={phase}
-      projectTitle={projectTitle}
-      tasks={tasks}
-      pending={pending}
-      onUpdateTask={handleUpdateTask}
-      onAddTask={handleAddTask}
-      onRemoveTask={handleRemoveTask}
-      onConfirmTask={handleConfirmTask}
-    />
+    <>
+      {variant === 'current' && (
+        <TaskBreakdown
+          phase={phase}
+          projectTitle={projectTitle}
+          tasks={tasks}
+          pending={pending}
+          onUpdateTask={handleUpdateTask}
+          onAddTask={handleAddTask}
+          onRemoveTask={handleRemoveTask}
+          onConfirmTask={handleConfirmTask}
+        />
+      )}
+      {variant === 'a-proposed' && <TaskEndingVariantA {...variantProps} state="proposed" />}
+      {variant === 'a-completed' && <TaskEndingVariantA {...variantProps} state="completed" />}
+      {variant === 'b-proposed' && <TaskEndingVariantB {...variantProps} state="proposed" />}
+      {variant === 'b-completed' && <TaskEndingVariantB {...variantProps} state="completed" />}
+      {variant === 'c-proposed' && <TaskEndingVariantC {...variantProps} state="proposed" />}
+      {variant === 'c-completed' && <TaskEndingVariantC {...variantProps} state="completed" />}
+      <PrototypeTaskEndingSwitcher
+        variant={variant}
+        onChange={(next) =>
+          navigateVariant({ search: next === 'current' ? {} : { variant: next }, replace: true })
+        }
+      />
+    </>
   )
 }
