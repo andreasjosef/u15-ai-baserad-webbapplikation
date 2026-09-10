@@ -117,16 +117,26 @@ describe('NavShell', () => {
     )
   })
 
-  // Issue #104: the wordmark is the Hone logo mark beside the "Hone" text;
-  // the mark carries no name of its own — the text (and the link's label) do.
-  it('pairs the logo mark with the Hone text in the wordmark lockup', () => {
+  // Issue #104: the wordmark is the Hone logo mark beside the "Hone" text
+  // everywhere it renders — desktop sidebar, mobile top bar, and the
+  // drawer's SheetTitle; the mark carries no name of its own — the text
+  // (and the link's label) do.
+  it('pairs the logo mark with the Hone text in every wordmark lockup', () => {
     renderShell()
 
-    const link = sidebar().getByRole('link', { name: 'Hone' })
-    const mark = link.querySelector('svg')
-    expect(mark).not.toBeNull()
-    expect(mark).toHaveAttribute('aria-hidden', 'true')
-    expect(link).toHaveTextContent('Hone')
+    for (const link of [
+      sidebar().getByRole('link', { name: 'Hone' }),
+      within(screen.getByRole('banner')).getByRole('link', { name: 'Hone' }),
+    ]) {
+      expect(link.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+      expect(link).toHaveTextContent('Hone')
+    }
+
+    // The drawer's SheetTitle is the third lockup.
+    const drawer = openDrawer()
+    const drawerLink = drawer.getByRole('link', { name: 'Hone' })
+    expect(drawerLink.querySelector('svg')).not.toBeNull()
+    expect(drawerLink).toHaveTextContent('Hone')
   })
 
   it('navigates home when a wordmark link is clicked', () => {
