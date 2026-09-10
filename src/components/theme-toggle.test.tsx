@@ -63,6 +63,16 @@ describe('ThemeToggle (collapsed icon button)', () => {
     expect(screen.queryByRole('switch')).not.toBeInTheDocument()
   })
 
+  // Issue #120: unlike the Settings row's button, the collapsed toggle is
+  // a fixed-size `size="icon"` button that can't stretch across the rail,
+  // so it must center itself explicitly to line up with the Settings icon
+  // above it. jsdom does no layout, so the centering is asserted as the
+  // class that produces it.
+  it('centers itself horizontally in the rail to line up with the Settings row', () => {
+    render(<ThemeToggle collapsed />)
+    expect(screen.getByRole('button')).toHaveClass('mx-auto')
+  })
+
   it('shows the Moon icon in dark mode', () => {
     document.documentElement.classList.add('dark')
     render(<ThemeToggle collapsed />)
