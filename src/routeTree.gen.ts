@@ -12,10 +12,10 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ShellRouteImport } from './routes/_shell'
 import { Route as LoginRouteImport } from './routes/login'
-import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as ShellHistoryRouteImport } from './routes/_shell/history'
 import { Route as ShellInterviewRouteImport } from './routes/_shell/interview'
+import { Route as ShellSettingsRouteImport } from './routes/_shell/settings'
 import { Route as ShellInterviewSessionIdRouteImport } from './routes/_shell/interview_.$sessionId'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
@@ -33,11 +33,6 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
@@ -51,6 +46,11 @@ const ShellHistoryRoute = ShellHistoryRouteImport.update({
 const ShellInterviewRoute = ShellInterviewRouteImport.update({
   id: '/interview',
   path: '/interview',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellSettingsRoute = ShellSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => ShellRoute,
 } as any)
 const ShellInterviewSessionIdRoute = ShellInterviewSessionIdRouteImport.update({
@@ -67,20 +67,20 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
-  '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/history': typeof ShellHistoryRoute
   '/interview': typeof ShellInterviewRoute
+  '/settings': typeof ShellSettingsRoute
   '/interview/$sessionId': typeof ShellInterviewSessionIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
-  '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/history': typeof ShellHistoryRoute
   '/interview': typeof ShellInterviewRoute
+  '/settings': typeof ShellSettingsRoute
   '/interview/$sessionId': typeof ShellInterviewSessionIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
@@ -89,10 +89,10 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_shell': typeof ShellRouteWithChildren
   '/login': typeof LoginRoute
-  '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/_shell/history': typeof ShellHistoryRoute
   '/_shell/interview': typeof ShellInterviewRoute
+  '/_shell/settings': typeof ShellSettingsRoute
   '/_shell/interview_/$sessionId': typeof ShellInterviewSessionIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
@@ -101,20 +101,20 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
-    | '/settings'
     | '/signup'
     | '/history'
     | '/interview'
+    | '/settings'
     | '/interview/$sessionId'
     | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/login'
-    | '/settings'
     | '/signup'
     | '/history'
     | '/interview'
+    | '/settings'
     | '/interview/$sessionId'
     | '/api/auth/$'
   id:
@@ -122,10 +122,10 @@ export interface FileRouteTypes {
     | '/'
     | '/_shell'
     | '/login'
-    | '/settings'
     | '/signup'
     | '/_shell/history'
     | '/_shell/interview'
+    | '/_shell/settings'
     | '/_shell/interview_/$sessionId'
     | '/api/auth/$'
   fileRoutesById: FileRoutesById
@@ -134,7 +134,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ShellRoute: typeof ShellRouteWithChildren
   LoginRoute: typeof LoginRoute
-  SettingsRoute: typeof SettingsRoute
   SignupRoute: typeof SignupRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
@@ -162,13 +161,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/signup': {
       id: '/signup'
       path: '/signup'
@@ -188,6 +180,13 @@ declare module '@tanstack/react-router' {
       path: '/interview'
       fullPath: '/interview'
       preLoaderRoute: typeof ShellInterviewRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/settings': {
+      id: '/_shell/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof ShellSettingsRouteImport
       parentRoute: typeof ShellRoute
     }
     '/_shell/interview_/$sessionId': {
@@ -210,12 +209,14 @@ declare module '@tanstack/react-router' {
 interface ShellRouteChildren {
   ShellHistoryRoute: typeof ShellHistoryRoute
   ShellInterviewRoute: typeof ShellInterviewRoute
+  ShellSettingsRoute: typeof ShellSettingsRoute
   ShellInterviewSessionIdRoute: typeof ShellInterviewSessionIdRoute
 }
 
 const ShellRouteChildren: ShellRouteChildren = {
   ShellHistoryRoute: ShellHistoryRoute,
   ShellInterviewRoute: ShellInterviewRoute,
+  ShellSettingsRoute: ShellSettingsRoute,
   ShellInterviewSessionIdRoute: ShellInterviewSessionIdRoute,
 }
 
@@ -225,7 +226,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ShellRoute: ShellRouteWithChildren,
   LoginRoute: LoginRoute,
-  SettingsRoute: SettingsRoute,
   SignupRoute: SignupRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }

@@ -29,7 +29,9 @@ function IndexPage() {
       onSignUp={() => navigate({ to: '/signup' })}
       onStartInterview={() => navigate({ to: '/interview' })}
       onOpenHistory={() => navigate({ to: '/history' })}
-      onOpenSettings={() => navigate({ to: '/settings' })}
+      // Issue #135: the settings back-link returns to the referrer, so
+      // Home passes itself as the `from` search param.
+      onOpenSettings={() => navigate({ to: '/settings', search: { from: '/' } })}
       onLogOut={async () => {
         const result = await signOut()
         if (result.ok) {
