@@ -15,17 +15,19 @@ import { NavShell, type NavItemId } from './nav-shell.tsx'
 
 function renderShell(currentItem?: NavItemId) {
   const onNavigate = vi.fn()
+  const onNavigateHome = vi.fn()
   const onOpenSettings = vi.fn()
   render(
     <NavShell
       currentItem={currentItem}
       onNavigate={onNavigate}
+      onNavigateHome={onNavigateHome}
       onOpenSettings={onOpenSettings}
     >
       <main>Screen content</main>
     </NavShell>,
   )
-  return { onNavigate, onOpenSettings }
+  return { onNavigate, onNavigateHome, onOpenSettings }
 }
 
 function sidebar() {
@@ -61,29 +63,70 @@ describe('NavShell', () => {
     expect(screen.getByText('Screen content')).toBeInTheDocument()
   })
 
-  it('shows Home and History nav rows and nothing for "my todos"', () => {
+  it('shows Interview and History nav rows and nothing for "my todos"', () => {
     renderShell()
-    expect(sidebar().getByRole('button', { name: 'Home' })).toBeInTheDocument()
+    expect(sidebar().getByRole('button', { name: 'Interview' })).toBeInTheDocument()
     expect(sidebar().getByRole('button', { name: 'History' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /todo/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Home' })).not.toBeInTheDocument()
   })
 
   it('highlights the row matching currentItem via aria-current', () => {
     renderShell('history')
     expect(sidebar().getByRole('button', { name: 'History' })).toHaveAttribute('aria-current', 'page')
-    expect(sidebar().getByRole('button', { name: 'Home' })).not.toHaveAttribute('aria-current')
+    expect(sidebar().getByRole('button', { name: 'Interview' })).not.toHaveAttribute('aria-current')
+  })
+
+  it('highlights the Interview row when it is the current item (issue #100)', () => {
+    renderShell('interview')
+    expect(sidebar().getByRole('button', { name: 'Interview' })).toHaveAttribute('aria-current', 'page')
+    expect(sidebar().getByRole('button', { name: 'History' })).not.toHaveAttribute('aria-current')
   })
 
   it('highlights no row when currentItem is undefined', () => {
     renderShell()
-    expect(sidebar().getByRole('button', { name: 'Home' })).not.toHaveAttribute('aria-current')
+    expect(sidebar().getByRole('button', { name: 'Interview' })).not.toHaveAttribute('aria-current')
     expect(sidebar().getByRole('button', { name: 'History' })).not.toHaveAttribute('aria-current')
+  })
+
+  it('fires onNavigate when the Interview sidebar row is clicked', () => {
+    const { onNavigate } = renderShell()
+    fireEvent.click(sidebar().getByRole('button', { name: 'Interview' }))
+    expect(onNavigate).toHaveBeenCalledWith('interview')
   })
 
   it('fires onNavigate when a sidebar row is clicked', () => {
     const { onNavigate } = renderShell()
     fireEvent.click(sidebar().getByRole('button', { name: 'History' }))
     expect(onNavigate).toHaveBeenCalledWith('history')
+  })
+
+  // Issue #100: the wordmark is the Home link — a real link (`role="link"`,
+  // `href="/"`) in all three places it renders, with plain clicks handed to
+  // the injected callback so the SPA navigates client-side.
+  it('renders the wordmark as a Home link in the sidebar and the mobile top bar', () => {
+    renderShell()
+    expect(sidebar().getByRole('link', { name: 'Hone' })).toHaveAttribute('href', '/')
+    expect(within(screen.getByRole('banner')).getByRole('link', { name: 'Hone' })).toHaveAttribute(
+      'href',
+      '/',
+    )
+  })
+
+  it('navigates home when a wordmark link is clicked', () => {
+    const { onNavigateHome, onNavigate } = renderShell()
+    fireEvent.click(within(screen.getByRole('banner')).getByRole('link', { name: 'Hone' }))
+    expect(onNavigateHome).toHaveBeenCalledTimes(1)
+    expect(onNavigate).not.toHaveBeenCalled()
+  })
+
+  it('navigates home from the drawer wordmark too, closing the drawer', async () => {
+    const { onNavigateHome } = renderShell()
+    openDrawer()
+
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('link', { name: 'Hone' }))
+    expect(onNavigateHome).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
   it('fires onOpenSettings from the top-bar Settings icon', () => {
