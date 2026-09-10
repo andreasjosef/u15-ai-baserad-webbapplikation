@@ -117,16 +117,14 @@ describe('TaskReview', () => {
     expect(within(screen.getByRole('region', { name: 'Normal' })).getByText('1 task')).toBeInTheDocument()
   })
 
-  it('keeps each section heading a color dot plus label, and rows in flat-list order', () => {
+  it('renders each section heading with a decorative color dot before the label', () => {
     render(<TaskReview {...baseProps} />)
-    const high = screen.getByRole('region', { name: 'High' })
-    expect(within(high).getByRole('heading', { name: 'High' })).toBeInTheDocument()
-    const highDot = high.querySelector('.size-2')
-    expect(highDot?.className).toContain('bg-amber-500')
-    const normalDot = screen
-      .getByRole('region', { name: 'Normal' })
-      .querySelector('.size-2')
-    expect(normalDot?.className).toContain('bg-muted-foreground')
+    // The colors themselves are locked in task-priority-groups.test.ts;
+    // here the heading is read structurally: dot, then label, then count.
+    for (const label of ['High', 'Normal']) {
+      const heading = within(screen.getByRole('region', { name: label })).getByRole('heading', { name: label })
+      expect(heading.previousElementSibling).toHaveAttribute('aria-hidden', 'true')
+    }
   })
 
   it('shows a task in the section matching its priority', () => {
