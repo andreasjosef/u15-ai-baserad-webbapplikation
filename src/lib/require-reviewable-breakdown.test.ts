@@ -12,6 +12,7 @@ const proposed: TaskBreakdownResult = {
   ok: true,
   phase: 'Proposed',
   projectTitle: 'Garage cleanup',
+  todoistProjectId: null,
   tasks: [
     { id: 't1', title: 'Clear out old boxes', description: null, priority: 'high', dueString: null, position: 0 },
   ],
@@ -35,7 +36,13 @@ describe('requireReviewableBreakdown', () => {
   })
 
   it('proceeds for an owned Session in the Completed phase', () => {
-    const completed: TaskBreakdownResult = { ok: true, phase: 'Completed', projectTitle: 'Garage cleanup', tasks: [] }
+    const completed: TaskBreakdownResult = {
+      ok: true,
+      phase: 'Completed',
+      projectTitle: 'Garage cleanup',
+      todoistProjectId: 'proj_abc123',
+      tasks: [],
+    }
     expect(requireReviewableBreakdown(completed)).toBe(completed)
   })
 
@@ -48,12 +55,24 @@ describe('requireReviewableBreakdown', () => {
   })
 
   it('redirects to the conversation route while the Session is still Defining', () => {
-    const defining: TaskBreakdownResult = { ok: true, phase: 'Defining', projectTitle: null, tasks: [] }
+    const defining: TaskBreakdownResult = {
+      ok: true,
+      phase: 'Defining',
+      projectTitle: null,
+      todoistProjectId: null,
+      tasks: [],
+    }
     expect(redirectTarget(defining)).toBe('/interview')
   })
 
   it('redirects to the conversation route while the Session is still Drilling', () => {
-    const drilling: TaskBreakdownResult = { ok: true, phase: 'Drilling', projectTitle: null, tasks: [] }
+    const drilling: TaskBreakdownResult = {
+      ok: true,
+      phase: 'Drilling',
+      projectTitle: null,
+      todoistProjectId: null,
+      tasks: [],
+    }
     expect(redirectTarget(drilling)).toBe('/interview')
   })
 })
