@@ -9,8 +9,9 @@
 // drawer by the `Sheet`'s `dialog` role, which Radix only mounts while
 // the drawer is open.
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { SIDEBAR_STORAGE_KEY } from '../lib/sidebar.ts'
 import { NavShell, type NavItemId } from './nav-shell.tsx'
 
 function renderShell(currentItem?: NavItemId) {
@@ -103,11 +104,14 @@ describe('NavShell', () => {
 
   // Issue #100: the wordmark is the Home link — a real link (`role="link"`,
   // `href="/"`) in all three places it renders, with plain clicks handed to
-  // the injected callback so the SPA navigates client-side.
+  // the injected callback so the SPA navigates client-side. Since #102 the
+  // sidebar wordmark also carries a CSS-gated "H" mark for the collapsed
+  // rail, so the accessible name is the two marks concatenated in jsdom
+  // (which applies no CSS) — matched with a regex.
   it('renders the wordmark as a Home link in the sidebar and the mobile top bar', () => {
     renderShell()
-    expect(sidebar().getByRole('link', { name: 'Hone' })).toHaveAttribute('href', '/')
-    expect(within(screen.getByRole('banner')).getByRole('link', { name: 'Hone' })).toHaveAttribute(
+    expect(sidebar().getByRole('link', { name: /hone/i })).toHaveAttribute('href', '/')
+    expect(within(screen.getByRole('banner')).getByRole('link', { name: /hone/i })).toHaveAttribute(
       'href',
       '/',
     )
@@ -115,7 +119,7 @@ describe('NavShell', () => {
 
   it('navigates home when a wordmark link is clicked', () => {
     const { onNavigateHome, onNavigate } = renderShell()
-    fireEvent.click(within(screen.getByRole('banner')).getByRole('link', { name: 'Hone' }))
+    fireEvent.click(within(screen.getByRole('banner')).getByRole('link', { name: /hone/i }))
     expect(onNavigateHome).toHaveBeenCalledTimes(1)
     expect(onNavigate).not.toHaveBeenCalled()
   })
@@ -124,7 +128,7 @@ describe('NavShell', () => {
     const { onNavigateHome } = renderShell()
     openDrawer()
 
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('link', { name: 'Hone' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('link', { name: /hone/i }))
     expect(onNavigateHome).toHaveBeenCalledTimes(1)
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
@@ -174,5 +178,125 @@ describe('NavShell', () => {
       'aria-current',
       'page',
     )
+  })
+})
+
+// The collapsible sidebar (issue #102): a toggle in the sidebar's top row
+// collapses it to an icon-only rail at `lg`+, with the choice persisted in
+// localStorage like the theme (issue #83). jsdom has no CSS, so the
+// collapsed *visuals* (narrow width, hidden labels, "H" mark) live in
+// Tailwind `lg:sidebar-collapsed:*` classes asserted as markup; what the
+// component itself actually *does* — the toggle, the `title` attributes,
+// the html class, and persistence — is asserted as state.
+describe('NavShell collapsible sidebar (issue #102)', () => {
+  beforeEach(() => {
+    document.documentElement.classList.remove('sidebar-collapsed')
+    localStorage.clear()
+  })
+
+  it('shows a collapse toggle in the sidebar top row, expanded by default', () => {
+    renderShell()
+    expect(sidebar().getByRole('button', { name: 'Collapse sidebar' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+  })
+
+  // jsdom does no layout, so the ~64px collapsed rail and its animation
+  // are asserted as the classes that produce them (as with the
+  // height-bound shell test above).
+  it('animates the width change to a 64px collapsed rail via CSS', () => {
+    renderShell()
+    expect(screen.getByRole('complementary')).toHaveClass(
+      'transition-[width,padding]',
+      'duration-200',
+      'lg:sidebar-collapsed:w-16',
+    )
+  })
+
+  it('collapses to an icon-only rail when the toggle is clicked, persisting the choice', () => {
+    renderShell()
+    fireEvent.click(sidebar().getByRole('button', { name: 'Collapse sidebar' }))
+
+    expect(document.documentElement).toHaveClass('sidebar-collapsed')
+    expect(localStorage.getItem(SIDEBAR_STORAGE_KEY)).toBe('collapsed')
+    expect(sidebar().getByRole('button', { name: 'Expand sidebar' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+  })
+
+  it('keeps collapsed nav icons clickable and discoverable via title', () => {
+    const { onNavigate } = renderShell()
+    fireEvent.click(sidebar().getByRole('button', { name: 'Collapse sidebar' }))
+
+    expect(sidebar().getByRole('button', { name: 'Interview' })).toHaveAttribute(
+      'title',
+      'Interview',
+    )
+    expect(sidebar().getByRole('button', { name: 'History' })).toHaveAttribute('title', 'History')
+
+    fireEvent.click(sidebar().getByRole('button', { name: 'Interview' }))
+    expect(onNavigate).toHaveBeenCalledWith('interview')
+  })
+
+  it('replaces the wordmark with an H mark while collapsed, still linking Home', () => {
+    const { onNavigateHome } = renderShell()
+    fireEvent.click(sidebar().getByRole('button', { name: 'Collapse sidebar' }))
+
+    const mark = sidebar().getByRole('link', { name: /hone/i })
+    expect(mark).toHaveAttribute('href', '/')
+    // The collapsed "H" mark is present and gated on the collapsed state;
+    // the full wordmark is what the CSS hides (issue #100's Home link
+    // must hold in the collapsed state too).
+    expect(within(mark).getByText('H', { exact: true })).toHaveClass('lg:sidebar-collapsed:inline')
+    expect(within(mark).getByText('Hone')).toHaveClass('lg:sidebar-collapsed:hidden')
+
+    fireEvent.click(mark)
+    expect(onNavigateHome).toHaveBeenCalledTimes(1)
+  })
+
+  it('expands back and persists the expanded choice', () => {
+    document.documentElement.classList.add('sidebar-collapsed')
+    localStorage.setItem(SIDEBAR_STORAGE_KEY, 'collapsed')
+    renderShell()
+
+    fireEvent.click(sidebar().getByRole('button', { name: 'Expand sidebar' }))
+
+    expect(document.documentElement.classList.contains('sidebar-collapsed')).toBe(false)
+    expect(localStorage.getItem(SIDEBAR_STORAGE_KEY)).toBe('expanded')
+    expect(sidebar().getByRole('button', { name: 'Collapse sidebar' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+  })
+
+  it('restores a persisted collapsed sidebar on mount (no flash of expanded)', () => {
+    // What the blocking inline script in __root.tsx does before first
+    // paint for a returning user with a stored collapsed preference.
+    localStorage.setItem(SIDEBAR_STORAGE_KEY, 'collapsed')
+    document.documentElement.classList.add('sidebar-collapsed')
+
+    renderShell()
+
+    expect(sidebar().getByRole('button', { name: 'Expand sidebar' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+    expect(sidebar().getByRole('button', { name: 'Interview' })).toHaveAttribute(
+      'title',
+      'Interview',
+    )
+  })
+
+  it('leaves the drawer untouched by the collapsed state', () => {
+    localStorage.setItem(SIDEBAR_STORAGE_KEY, 'collapsed')
+    document.documentElement.classList.add('sidebar-collapsed')
+
+    renderShell()
+    const drawer = openDrawer()
+
+    expect(drawer.getByRole('button', { name: 'Interview' })).not.toHaveAttribute('title')
+    expect(drawer.getByRole('link', { name: /hone/i })).toHaveAttribute('href', '/')
   })
 })

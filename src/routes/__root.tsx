@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 
+import { sidebarInitScript } from '../lib/sidebar.ts'
 import { themeInitScript } from '../lib/theme.ts'
 import appCss from '../styles.css?url'
 
@@ -26,6 +27,11 @@ function RootDocument({ children }: { children: ReactNode }) {
             synchronous script, because at this point hydration and React
             don't exist yet. */}
         <script dangerouslySetInnerHTML={{ __html: themeInitScript() }} />
+        {/* Same trick for the collapsed sidebar (issue #102): a stored
+            collapsed preference must be on `<html>` before anything paints,
+            so a returning user never sees the rail flash open then shut.
+            Runs right after the theme script, for the same reason. */}
+        <script dangerouslySetInnerHTML={{ __html: sidebarInitScript() }} />
         <HeadContent />
       </head>
       <body className="min-h-screen font-sans antialiased">

@@ -5,6 +5,13 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Collapsed sidebar (issue #102): `useSidebar` (src/hooks/use-sidebar.ts)
+   keeps this class on <html>, applied before first paint by the blocking
+   script in __root.tsx. Components gate the collapsed rail's visuals on
+   it via `lg:sidebar-collapsed:*` utilities — always paired with `lg:`
+   so below the sidebar breakpoint nothing changes. */
+@custom-variant sidebar-collapsed (&:is(.sidebar-collapsed *));
+
 @theme inline {
     --font-heading: var(--font-sans);
     --font-sans: 'Geist Variable', sans-serif;

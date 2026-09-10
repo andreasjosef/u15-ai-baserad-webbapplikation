@@ -22,9 +22,23 @@
 // (issue #100). Settings is a persistent top-bar icon, never a nav row
 // (issue #63's nav-content decision), and takes the user to `/settings`
 // unchanged.
+//
+// Since issue #102 the permanent sidebar is also collapsible to an
+// icon-only rail: a toggle in its top row flips a `sidebar-collapsed`
+// class on `<html>` (via `useSidebar`, persisted like the theme), and the
+// collapsed visuals — narrow width, hidden labels, "H" wordmark mark —
+// are pure `lg:sidebar-collapsed:*` CSS on the markup below. The drawer
+// is untouched: it only exists below `lg`, where collapse doesn't apply.
 import { useState, type MouseEvent, type ReactNode } from 'react'
 
-import { HistoryIcon, MenuIcon, MessageSquareIcon, SettingsIcon } from 'lucide-react'
+import {
+  HistoryIcon,
+  MenuIcon,
+  MessageSquareIcon,
+  PanelLeftCloseIcon,
+  PanelLeftOpenIcon,
+  SettingsIcon,
+} from 'lucide-react'
 
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
@@ -35,6 +49,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
+import { useSidebar } from '@/hooks/use-sidebar'
 
 export type NavItemId = 'interview' | 'history'
 
@@ -83,7 +98,19 @@ function Wordmark({
       onClick={handleClick}
       className={`${WORDMARK_CLASS}${className ? ` ${className}` : ''}`}
     >
-      Hone
+      {/* Issue #102: in the collapsed rail the wordmark shrinks to a bare
+          "H" — same purple/heading treatment, inherited from the link.
+          Which mark shows is decided purely by CSS (`lg:sidebar-collapsed`
+          variants), so a persisted collapsed state renders correctly
+          before hydration; the accessible name therefore concatenates the
+          two marks in CSS-less environments (tests) but is correct —
+          "Hone" expanded, "H" collapsed — in a real browser. The link
+          itself never unmounts: issue #100's Home link must hold while
+          collapsed. */}
+      <span className="lg:sidebar-collapsed:hidden">Hone</span>
+      <span className="hidden lg:sidebar-collapsed:inline lg:sidebar-collapsed:tracking-normal">
+        H
+      </span>
     </a>
   )
 }
@@ -111,10 +138,18 @@ function NavRow({
   item,
   active,
   onSelect,
+  collapsible = false,
 }: {
   item: NavItem
   active: boolean
   onSelect: () => void
+  // Sidebar-only (issue #102): rows that live in the collapsible sidebar
+  // carry a static `title` so the bare icon stays discoverable while the
+  // CSS-hidden label is gone. Static — not gated on the collapsed state —
+  // so it's present before hydration too, when the persisted rail renders
+  // collapsed but React state hasn't synced yet. The drawer never
+  // collapses and keeps its exact current markup, so it doesn't set this.
+  collapsible?: boolean
 }) {
   const Icon = item.icon
   return (
@@ -122,26 +157,30 @@ function NavRow({
       type="button"
       onClick={onSelect}
       aria-current={active ? 'page' : undefined}
-      className={`flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${
+      title={collapsible ? item.label : undefined}
+      className={`flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors lg:sidebar-collapsed:justify-center ${
         active
           ? 'bg-accent text-accent-foreground'
           : 'text-foreground hover:bg-muted hover:text-foreground'
       }`}
     >
       <Icon className="size-4" aria-hidden="true" />
-      {item.label}
+      <span className="lg:sidebar-collapsed:hidden">{item.label}</span>
     </button>
   )
 }
 
 // The same row set in the permanent sidebar and the drawer — only the
-// select handler differs (the drawer's also closes itself).
+// select handler differs (the drawer's also closes itself), and only the
+// sidebar's rows participate in the collapsed rail (issue #102).
 function NavList({
   currentItem,
   onSelect,
+  collapsible = false,
 }: {
   currentItem?: NavItemId
   onSelect: (item: NavItemId) => void
+  collapsible?: boolean
 }) {
   return (
     <nav aria-label="Main" className="flex flex-col gap-1">
@@ -150,6 +189,7 @@ function NavList({
           key={item.id}
           item={item}
           active={item.id === currentItem}
+          collapsible={collapsible}
           onSelect={() => onSelect(item.id)}
         />
       ))}
@@ -165,6 +205,13 @@ export function NavShell({
   children,
 }: NavShellProps) {
   const [drawerOpen, setDrawerOpen] = useState(false)
+  // Issue #102: the collapsed/expanded choice of the permanent sidebar.
+  // `useSidebar` reads what the blocking init script in `__root.tsx`
+  // already applied to `<html>` and persists every change; the collapsed
+  // *visuals* are pure CSS (`lg:sidebar-collapsed:*` classes on the
+  // markup below), so a persisted state is correct before hydration.
+  const { state: sidebarState, toggleSidebar } = useSidebar()
+  const sidebarCollapsed = sidebarState === 'collapsed'
 
   // A drawer row closes the drawer as part of the same interaction; the
   // permanent sidebar has nothing to close.
@@ -182,10 +229,35 @@ export function NavShell({
 
   return (
     <div className="flex h-dvh overflow-hidden bg-background text-foreground">
-      {/* Permanent sidebar — lg and up. */}
-      <aside className="hidden w-56 shrink-0 flex-col gap-8 border-r border-border bg-sidebar p-4 lg:flex">
-        <Wordmark onNavigateHome={onNavigateHome} />
-        <NavList currentItem={currentItem} onSelect={onNavigate} />
+      {/* Permanent sidebar — lg and up. Issue #102: the width (w-56
+              expanded, w-16 collapsed rail) is toggled by the
+              `lg:sidebar-collapsed:*` classes against the `sidebar-collapsed`
+              class `useSidebar` keeps on `<html>`, so the state is correct
+              before hydration; `transition-[width,padding]` animates the
+              change instead of snapping. */}
+      <aside className="hidden w-56 shrink-0 flex-col gap-8 border-r border-border bg-sidebar p-4 transition-[width,padding] duration-200 lg:flex lg:sidebar-collapsed:w-16 lg:sidebar-collapsed:px-2">
+        {/* Issue #102: the top row holds the wordmark and the collapse
+            toggle in the same spot in both states. In the collapsed rail's
+            48px content width the "H" mark and the 32px icon button only
+            fit flush, so the gap collapses with the sidebar. */}
+        <div className="flex items-center justify-between gap-1 lg:sidebar-collapsed:gap-0">
+          <Wordmark onNavigateHome={onNavigateHome} />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={toggleSidebar}
+            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-expanded={!sidebarCollapsed}
+          >
+            {sidebarCollapsed ? (
+              <PanelLeftOpenIcon aria-hidden="true" />
+            ) : (
+              <PanelLeftCloseIcon aria-hidden="true" />
+            )}
+          </Button>
+        </div>
+        <NavList currentItem={currentItem} onSelect={onNavigate} collapsible />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
