@@ -45,6 +45,13 @@
 // the form exactly like the send button — through the same handleSubmit
 // guard — while Shift+Enter keeps its default newline. Enter that merely
 // confirms an IME composition never submits.
+//
+// Composer polish (issue #134): the visible <label> above the textarea is
+// gone in both states (the textarea's aria-label is the accessible name),
+// and on a fine-pointer (desktop) device the textarea autofocuses on
+// mount and is refocused after every submit — success or failure — via
+// prefersFinePointer (src/lib/pointer.ts), so a coarse-pointer device's
+// on-screen keyboard is never forced open unsolicited.
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 
 import { ArrowUpIcon } from 'lucide-react'
@@ -52,6 +59,7 @@ import { ArrowUpIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 import { isNearBottom } from '../lib/scroll-near-bottom.ts'
+import { prefersFinePointer } from '../lib/pointer.ts'
 import type { Phase } from '../lib/phase.ts'
 
 export interface InterviewMessage {
@@ -161,6 +169,23 @@ export function InterviewView({
     textarea.style.height = `${textarea.scrollHeight}px`
   }, [draft])
 
+  // Autofocus (issue #134): on a fine-pointer (desktop) device the
+  // textarea takes focus on mount — the composer is the screen's one
+  // input, so starting there saves a click. Gated through
+  // `prefersFinePointer` so a coarse-pointer device never has its
+  // on-screen keyboard forced open unsolicited.
+  useEffect(() => {
+    if (prefersFinePointer()) {
+      textareaRef.current?.focus()
+    }
+  }, [])
+
+  function refocusComposer() {
+    if (prefersFinePointer()) {
+      textareaRef.current?.focus()
+    }
+  }
+
   // Enter-to-send (issue #90): Enter submits the form — requestSubmit
   // lands in the same handleSubmit as the send button, so the
   // pending/empty-draft guard is shared rather than duplicated.
@@ -188,11 +213,18 @@ export function InterviewView({
     const result = await onSubmit(message)
     if (result.ok) {
       setDraft('')
+      // Issue #134: after every submit — success or failure — a desktop
+      // user is back in the composer, ready for the next question (focus
+      // drifts during the await: the send button, a tab-away). On a
+      // coarse-pointer device nothing is focused, per the same gate as
+      // the mount autofocus.
+      refocusComposer()
       if (result.breakdownProposed) {
         onBreakdownProposed()
       }
     } else {
       setError(result.message)
+      refocusComposer()
     }
   }
 
@@ -269,9 +301,9 @@ export function InterviewView({
         )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-2">
-          <label htmlFor="idea" className="text-sm font-medium">
-            {started ? 'Your answer' : 'Your vague idea'}
-          </label>
+          {/* Issue #134: the visible <label> above the field is gone in
+              both states — the textarea's own aria-label is the
+              accessible name, so nothing regresses. */}
           <div className={COMPOSER_CLASS}>
             <textarea
               id="idea"

@@ -4,7 +4,7 @@
 // onBreakdownProposed — so the whole conversation UI renders without a
 // router, db, or network.
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 
 import { InterviewView, type InterviewMessage } from './interview-view.tsx'
 import type { Phase } from '../lib/phase.ts'
@@ -134,6 +134,106 @@ describe('InterviewView', () => {
     )
     expect(screen.getByRole('button', { name: /send/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /start/i })).not.toBeInTheDocument()
+  })
+
+  // --- Composer label removal (issue #134) ---------------------------------
+
+  // The visible <label> above the textarea is gone in both states; the
+  // textarea's own aria-label is the accessible name, so getByLabelText
+  // keeps resolving exactly as before.
+  it('renders no visible label above the composer before the conversation starts', () => {
+    render(<InterviewView {...baseProps} />)
+    expect(screen.queryByText('Your vague idea')).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/idea/i)).toBeInTheDocument()
+  })
+
+  it('renders no visible label above the composer mid-conversation', () => {
+    render(
+      <InterviewView
+        {...baseProps}
+        messages={[
+          { role: 'user', content: 'idea' },
+          { role: 'assistant', content: 'question?' },
+        ]}
+      />,
+    )
+    expect(screen.queryByText('Your answer')).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/answer/i)).toBeInTheDocument()
+  })
+
+  // --- Composer autofocus (issue #134) --------------------------------------
+
+  // The gate is the pointer media feature (src/lib/pointer.ts): on a
+  // fine-pointer device the textarea is focused on mount; on a
+  // coarse-pointer one it never is — focus would force the on-screen
+  // keyboard open unsolicited. jsdom's matchMedia reports coarse, which
+  // is the default every other test here inherits (no stray focus).
+  function stubPointer(fine: boolean) {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn().mockReturnValue({ matches: fine }) as unknown as typeof window.matchMedia,
+    )
+  }
+
+  afterAll(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('focuses the textarea on mount under a fine pointer', () => {
+    stubPointer(true)
+    render(<InterviewView {...baseProps} />)
+    expect(screen.getByLabelText(/idea/i)).toHaveFocus()
+  })
+
+  it('does not focus the textarea on mount under a coarse pointer', () => {
+    stubPointer(false)
+    render(<InterviewView {...baseProps} />)
+    expect(screen.getByLabelText(/idea/i)).not.toHaveFocus()
+  })
+
+  // The same gate covers the post-submit refocus: whatever the turn's
+  // outcome, a desktop user is back in the composer ready to answer the
+  // next question; a coarse-pointer device is left alone. The textarea
+  // is blurred first (focus drifted elsewhere during the await — e.g.
+  // the user tabbed away), so the refocus is the only thing that can
+  // restore it; jsdom's click doesn't move focus.
+  it('refocuses the textarea after a successful submit under a fine pointer', async () => {
+    stubPointer(true)
+    const onSubmit = vi.fn().mockResolvedValue({ ok: true })
+    render(<InterviewView {...baseProps} onSubmit={onSubmit} />)
+    const textarea = screen.getByLabelText(/idea/i)
+    fireEvent.change(textarea, { target: { value: 'sort out the garage' } })
+    textarea.blur()
+    fireEvent.click(screen.getByRole('button', { name: /start/i }))
+
+    await waitFor(() => expect(textarea).toHaveValue(''))
+    expect(textarea).toHaveFocus()
+  })
+
+  it('refocuses the textarea after a failed submit under a fine pointer', async () => {
+    stubPointer(true)
+    const onSubmit = vi.fn().mockResolvedValue({ ok: false, message: 'Try again.' })
+    render(<InterviewView {...baseProps} onSubmit={onSubmit} />)
+    const textarea = screen.getByLabelText(/idea/i)
+    fireEvent.change(textarea, { target: { value: 'sort out the garage' } })
+    textarea.blur()
+    fireEvent.click(screen.getByRole('button', { name: /start/i }))
+
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
+    expect(textarea).toHaveFocus()
+  })
+
+  it('does not refocus the textarea after a submit under a coarse pointer', async () => {
+    stubPointer(false)
+    const onSubmit = vi.fn().mockResolvedValue({ ok: true })
+    render(<InterviewView {...baseProps} onSubmit={onSubmit} />)
+    const textarea = screen.getByLabelText(/idea/i)
+    fireEvent.change(textarea, { target: { value: 'sort out the garage' } })
+    textarea.blur()
+    fireEvent.click(screen.getByRole('button', { name: /start/i }))
+
+    await waitFor(() => expect(textarea).toHaveValue(''))
+    expect(textarea).not.toHaveFocus()
   })
 
   // --- Typing indicator (issue #89) ----------------------------------------
