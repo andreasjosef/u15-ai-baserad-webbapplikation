@@ -1,11 +1,12 @@
-// Account settings route (issue #23, reworked by #135): where a logged-in
-// user pastes their Todoist personal API token. Now nested under the
-// pathless `_shell` layout — the URL stays `/settings`, but the screen
-// renders inside the NavShell chrome like every other post-login screen.
-// `beforeLoad` reuses the same guard as the shell's child routes — an
-// anonymous visitor is redirected to the log-in page — and loads only
-// the *status* of the stored token (whether one exists); the token
-// itself never crosses the wire, per ADR-0002.
+// Account settings route (issue #23, reworked by #135, extended by #136):
+// where a logged-in user pastes their Todoist personal API token and their
+// own OpenRouter API key. Now nested under the pathless `_shell` layout —
+// the URL stays `/settings`, but the screen renders inside the NavShell
+// chrome like every other post-login screen. `beforeLoad` reuses the same
+// guard as the shell's child routes — an anonymous visitor is redirected
+// to the log-in page — and loads only the *status* of each stored
+// credential (whether one exists); neither the token nor the key ever
+// crosses the wire, per ADR-0002.
 //
 // The presentational work lives in components/settings-view.tsx; this
 // file exports nothing but the route itself, which keeps the bundler's
@@ -21,6 +22,11 @@ import { useState } from 'react'
 import { SettingsView } from '../../components/settings-view.tsx'
 import { requireAuthSession } from '../../lib/require-auth-session.ts'
 import { getSession } from '../../lib/server/session.ts'
+import {
+  clearOpenRouterKey,
+  getOpenRouterKeyStatus,
+  saveOpenRouterKey,
+} from '../../lib/server/openrouter-settings-actions.ts'
 import {
   getTodoistTokenStatus,
   saveTodoistToken,
@@ -40,8 +46,11 @@ export const Route = createFileRoute('/_shell/settings')({
   validateSearch,
   beforeLoad: async () => {
     const session = requireAuthSession(await getSession())
-    const { hasToken } = await getTodoistTokenStatus()
-    return { session, hasToken }
+    const [{ hasToken }, { hasKey }] = await Promise.all([
+      getTodoistTokenStatus(),
+      getOpenRouterKeyStatus(),
+    ])
+    return { session, hasToken, hasKey }
   },
   component: SettingsPage,
 })
@@ -57,18 +66,21 @@ function backLabelFor(from: string | undefined): string {
 }
 
 function SettingsPage() {
-  const { session, hasToken } = Route.useRouteContext()
+  const { session, hasToken, hasKey } = Route.useRouteContext()
   const { from } = Route.useSearch()
   const router = useRouter()
 
-  // `beforeLoad` reads the saved-token status once per visit; a save inside
-  // this visit updates it locally so the copy never goes stale.
+  // `beforeLoad` reads each saved-credential status once per visit; a save
+  // or clear inside this visit updates it locally so the copy never goes
+  // stale.
   const [tokenSaved, setTokenSaved] = useState(hasToken)
+  const [keySaved, setKeySaved] = useState(hasKey)
   return (
     <SettingsView
       userName={session.user.name}
       userEmail={session.user.email}
       tokenSaved={tokenSaved}
+      keySaved={keySaved}
       backLabel={backLabelFor(from)}
       onBack={() => {
         router.history.push(from ?? '/')
@@ -77,6 +89,20 @@ function SettingsPage() {
         const result = await saveTodoistToken({ data })
         if (result.ok) {
           setTokenSaved(true)
+        }
+        return result
+      }}
+      onSubmitOpenRouterKey={async (data) => {
+        const result = await saveOpenRouterKey({ data })
+        if (result.ok) {
+          setKeySaved(true)
+        }
+        return result
+      }}
+      onClearOpenRouterKey={async () => {
+        const result = await clearOpenRouterKey()
+        if (result.ok) {
+          setKeySaved(false)
         }
         return result
       }}

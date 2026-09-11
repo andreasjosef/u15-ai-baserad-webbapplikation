@@ -20,6 +20,7 @@ export const user = pgTable("user", {
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
   todoistToken: text("todoist_token"),
+  openrouterApiKey: text("openrouter_api_key"),
 });
 
 export const session = pgTable(

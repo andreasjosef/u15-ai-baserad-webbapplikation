@@ -40,6 +40,16 @@ export const auth = betterAuth({
         input: false,
         returned: false,
       },
+      // Same ADR-0002 contract as todoistToken: `base64(iv || authTag ||
+      // ciphertext)`, written and read only by server-side code that talks
+      // to OpenRouter — never settable through the sign-up/update-user API
+      // and never sent back to the client (issue #136).
+      openrouterApiKey: {
+        type: 'string',
+        required: false,
+        input: false,
+        returned: false,
+      },
     },
   },
   // Must be the last plugin so sign-in/up cookies are actually written

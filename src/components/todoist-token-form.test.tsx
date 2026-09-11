@@ -3,6 +3,15 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { TokenSettingsForm } from './todoist-token-form.tsx'
 import type { AuthResult } from '../lib/auth-result.ts'
+import { parseTodoistToken } from '../lib/token-input.ts'
+
+// The form's parser and copy are now per-row props (issue #136); the
+// Todoist tests pass the Todoist bundle explicitly.
+const todoistProps = {
+  label: 'Todoist API token',
+  placeholder: 'Paste your Todoist personal API token',
+  parse: parseTodoistToken,
+}
 
 function deferredSubmit(resolution: AuthResult = { ok: true }) {
   const deferred: { resolve?: (result: AuthResult) => void } = {}
@@ -25,7 +34,7 @@ function pasteToken(value: string) {
 describe('TokenSettingsForm', () => {
   it('submits the pasted token when valid', async () => {
     const { submit } = deferredSubmit()
-    render(<TokenSettingsForm onSubmit={submit} />)
+    render(<TokenSettingsForm {...todoistProps} onSubmit={submit} />)
 
     pasteToken('  a1b2c3d4e5f6  ')
 
@@ -36,7 +45,7 @@ describe('TokenSettingsForm', () => {
 
   it('shows a validation error and skips the submit action for empty input', () => {
     const { submit } = deferredSubmit()
-    render(<TokenSettingsForm onSubmit={submit} />)
+    render(<TokenSettingsForm {...todoistProps} onSubmit={submit} />)
 
     pasteToken('   ')
 
@@ -46,7 +55,7 @@ describe('TokenSettingsForm', () => {
 
   it('never displays the token as it is typed (password-style input)', () => {
     const { submit } = deferredSubmit()
-    render(<TokenSettingsForm onSubmit={submit} />)
+    render(<TokenSettingsForm {...todoistProps} onSubmit={submit} />)
 
     const input = screen.getByLabelText('Todoist API token') as HTMLInputElement
     expect(input.type).toBe('password')
@@ -55,7 +64,7 @@ describe('TokenSettingsForm', () => {
 
   it('clears the input and confirms without echoing the token on success', async () => {
     const { submit, resolve } = deferredSubmit()
-    render(<TokenSettingsForm onSubmit={submit} />)
+    render(<TokenSettingsForm {...todoistProps} onSubmit={submit} />)
 
     pasteToken('a1b2c3d4e5f6')
     await waitFor(() => expect(submit).toHaveBeenCalled())
@@ -72,7 +81,7 @@ describe('TokenSettingsForm', () => {
 
   it('shows the failure message from a failed save', async () => {
     const { submit, resolve } = deferredSubmit()
-    render(<TokenSettingsForm onSubmit={submit} />)
+    render(<TokenSettingsForm {...todoistProps} onSubmit={submit} />)
 
     pasteToken('a1b2c3d4e5f6')
     await waitFor(() => expect(submit).toHaveBeenCalled())
@@ -89,7 +98,7 @@ describe('TokenSettingsForm', () => {
     const submit = vi.fn(async () => {
       throw new Error('network gone')
     })
-    render(<TokenSettingsForm onSubmit={submit} />)
+    render(<TokenSettingsForm {...todoistProps} onSubmit={submit} />)
 
     pasteToken('a1b2c3d4e5f6')
 
@@ -102,7 +111,7 @@ describe('TokenSettingsForm', () => {
 
   it('disables the submit button while the action is pending', async () => {
     const { submit, resolve } = deferredSubmit()
-    render(<TokenSettingsForm onSubmit={submit} />)
+    render(<TokenSettingsForm {...todoistProps} onSubmit={submit} />)
 
     const button = screen.getByRole('button', { name: 'Save token' }) as HTMLButtonElement
     fireEvent.input(screen.getByLabelText('Todoist API token'), {

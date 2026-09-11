@@ -10,6 +10,7 @@ import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { db } from '../client.ts'
+import { decryptToken, encryptToken, loadTokenEncryptionKey } from '../../token-crypto.ts'
 import * as schema from './index.ts'
 
 const createdUserIds: Array<string> = []
@@ -38,6 +39,52 @@ afterAll(async () => {
   if (createdUserIds.length > 0) {
     await db.delete(schema.user).where(inArray(schema.user.id, createdUserIds))
   }
+})
+
+describe('user', () => {
+  it('stores both encrypted credential columns as nullable payloads, clearable back to the shared default (ADR-0002, issue #136)', async () => {
+    const testUser = await insertTestUser()
+
+    // Defining: neither credential saved yet — the account runs on the
+    // shared defaults until something is pasted in Settings.
+    expect(testUser.todoistToken).toBeNull()
+    expect(testUser.openrouterApiKey).toBeNull()
+
+    // The columns hold whatever the token-crypto helpers write — opaque
+    // base64(iv || authTag || ciphertext) payloads, never plaintext.
+    await db
+      .update(schema.user)
+      .set({
+        todoistToken: encryptToken('todoist-plaintext', loadTokenEncryptionKey()),
+        openrouterApiKey: encryptToken('sk-or-v1-openrouter-plaintext', loadTokenEncryptionKey()),
+      })
+      .where(eq(schema.user.id, testUser.id))
+    const [saved] = await db
+      .select()
+      .from(schema.user)
+      .where(eq(schema.user.id, testUser.id))
+
+    expect(saved!.todoistToken).not.toBeNull()
+    expect(decryptToken(saved!.todoistToken!, loadTokenEncryptionKey())).toBe('todoist-plaintext')
+    expect(saved!.openrouterApiKey).not.toBeNull()
+    expect(saved!.openrouterApiKey).not.toContain('openrouter-plaintext')
+    expect(decryptToken(saved!.openrouterApiKey!, loadTokenEncryptionKey())).toBe(
+      'sk-or-v1-openrouter-plaintext',
+    )
+
+    // Clearing reverts the account to the shared default: the column goes
+    // back to null (the row itself survives).
+    await db
+      .update(schema.user)
+      .set({ openrouterApiKey: null })
+      .where(eq(schema.user.id, testUser.id))
+    const [cleared] = await db
+      .select()
+      .from(schema.user)
+      .where(eq(schema.user.id, testUser.id))
+    expect(cleared!.todoistToken).not.toBeNull()
+    expect(cleared!.openrouterApiKey).toBeNull()
+  })
 })
 
 describe('interview_sessions / messages / tasks', () => {
