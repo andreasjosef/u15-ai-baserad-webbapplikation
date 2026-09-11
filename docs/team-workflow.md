@@ -38,6 +38,17 @@ The skill chain stays the same one used solo: `grilling` → `to-spec` → `to-t
 - Merge into `dev` once approved and green.
 - **These two gates are GitHub-enforced, not just a norm.** The repo is public, and `dev` has branch protection: the `check` CI job must pass against an up-to-date branch, and at least 1 approving review is required, before GitHub will allow the merge button to be pressed at all.
 - **Promoting `dev` to `main`**: whenever `dev` is in a good, demoable state — a natural checkpoint, not after every single ticket — open a `dev` → `main` PR to promote it, which is what actually goes live. Anyone can propose the promotion; it doesn't need an owner. Before the Sep 11 oral defense, `main` must be promoted and verified working, not just `dev`.
+  - **Merge via a merge commit** — not squash, not rebase. The commits landing on `main` already went through `dev`'s own review gate above; a merge commit records the promotion point honestly, as a single new commit on `main` that keeps `dev`'s history intact, instead of rewriting or flattening it the way squash/rebase would.
+  - **Tag and release**: tag the resulting `main` commit `v1.0.0` and cut a GitHub Release from that tag using auto-generated release notes (GitHub's "Generate release notes" button, sourced from the PRs merged into `dev` since the last tag) — no hand-written changelog.
+  - **The gate is a hand-run production verification checklist, not a second code review.** The code already went through review on its way into `dev` (§5 above); bolting an approval on top of the promotion PR itself would just re-review the same diff a second time. Instead, whoever proposes the promotion runs this checklist by hand against the deployed production URL before merging:
+    1. Sign up for a new account.
+    2. Log in.
+    3. Connect a Todoist personal API token.
+    4. Run an Interview end-to-end through the proposed breakdown.
+    5. Review/edit that breakdown.
+    6. Confirm it and see the real tasks land in Todoist.
+    7. Log out.
+  - Only merge the promotion PR once every step above passes against production.
 
 ## 6. Bugs
 
