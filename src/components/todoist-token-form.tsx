@@ -1,26 +1,49 @@
-// The token-entry form on the account settings page (issue #23). Mirrors
-// AuthForm: validates with the same parser the server function uses,
-// shows failures as a retryable alert, disables the button while pending.
-// On success the field is cleared and a non-sensitive confirmation is
-// shown — the plaintext token is never rendered back, per the ticket's
-// acceptance criteria.
-import { useState, type FormEvent } from 'react'
+// The credential-entry form behind the settings page's rows (issue #23;
+// parameterized for the OpenRouter key row by #136). Mirrors AuthForm:
+// validates with the same parser the server function uses, shows failures
+// as a retryable alert, disables the buttons while pending. On success the
+// field is cleared and a non-sensitive confirmation is shown — the
+// plaintext credential is never rendered back, per the acceptance
+// criteria. Rows that support reverting (OpenRouter, #136) also get a
+// clear button wired to an injected onClear action.
+import { useRef, useState, type FormEvent } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
 import type { AuthResult } from '../lib/auth-result.ts'
 import { GENERIC_FAILURE } from '../lib/auth-result.ts'
-import { parseTodoistToken } from '../lib/token-input.ts'
+import type { ParsedCredentials } from '../lib/auth-input.ts'
 
 export interface TokenSettingsFormProps {
+  label: string
+  placeholder: string
+  parse: (input: unknown) => ParsedCredentials<{ token: string }>
+  savedMessage?: string
+  clearedMessage?: string
+  submitLabel?: string
+  clearLabel?: string
   onSubmit: (data: { token: string }) => Promise<AuthResult>
+  onClear?: () => Promise<AuthResult>
 }
 
-export function TokenSettingsForm({ onSubmit }: TokenSettingsFormProps) {
+export function TokenSettingsForm({
+  label,
+  placeholder,
+  parse,
+  savedMessage = 'Token saved.',
+  clearedMessage = 'Token cleared.',
+  submitLabel = 'Save token',
+  clearLabel = 'Use shared key',
+  onSubmit,
+  onClear,
+}: TokenSettingsFormProps) {
   const [error, setError] = useState<string | null>(null)
-  const [saved, setSaved] = useState(false)
+  const [status, setStatus] = useState<'saved' | 'cleared' | null>(null)
   const [pending, setPending] = useState(false)
+  // Clearing is a button click, not a submit — the form node is reached
+  // through a ref so the input can be reset too.
+  const formRef = useRef<HTMLFormElement>(null)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -29,14 +52,14 @@ export function TokenSettingsForm({ onSubmit }: TokenSettingsFormProps) {
     const form = event.currentTarget
     const formData = new FormData(form)
 
-    const parsed = parseTodoistToken({ token: formData.get('token') })
+    const parsed = parse({ token: formData.get('token') })
     if (!parsed.ok) {
       setError(parsed.message)
       return
     }
 
     setError(null)
-    setSaved(false)
+    setStatus(null)
     setPending(true)
     try {
       // The server-side validator re-runs the same parser, so its thrown
@@ -45,7 +68,7 @@ export function TokenSettingsForm({ onSubmit }: TokenSettingsFormProps) {
       const submitted = await onSubmit(parsed.data)
       if (submitted.ok) {
         form.reset()
-        setSaved(true)
+        setStatus('saved')
       } else {
         setError(submitted.message)
       }
@@ -56,17 +79,37 @@ export function TokenSettingsForm({ onSubmit }: TokenSettingsFormProps) {
     }
   }
 
+  async function handleClear() {
+    if (!onClear) return
+    setError(null)
+    setStatus(null)
+    setPending(true)
+    try {
+      const cleared = await onClear()
+      if (cleared.ok) {
+        formRef.current?.reset()
+        setStatus('cleared')
+      } else {
+        setError(cleared.message)
+      }
+    } catch {
+      setError(GENERIC_FAILURE.message)
+    } finally {
+      setPending(false)
+    }
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="flex w-full flex-col gap-4">
+    <form ref={formRef} onSubmit={handleSubmit} className="flex w-full flex-col gap-4">
       <label className="flex flex-col gap-2 text-sm font-medium">
-        Todoist API token
+        {label}
         <Input
           name="token"
           type="password"
           autoComplete="off"
           // Screen-reader-friendly hint that matches the label's promise:
           // whatever is pasted here is stored, never shown back.
-          placeholder="Paste your Todoist personal API token"
+          placeholder={placeholder}
           className="h-10 rounded-md"
         />
       </label>
@@ -75,14 +118,29 @@ export function TokenSettingsForm({ onSubmit }: TokenSettingsFormProps) {
           {error}
         </p>
       )}
-      {saved && (
+      {status && (
         <p role="status" className="text-sm text-primary">
-          Token saved.
+          {status === 'saved' ? savedMessage : clearedMessage}
         </p>
       )}
-      <Button type="submit" disabled={pending} className="h-10 w-full rounded-md">
-        {pending ? 'Saving…' : 'Save token'}
-      </Button>
+      <div className="flex flex-row gap-2">
+        <Button type="submit" disabled={pending} className="h-10 flex-1 rounded-md">
+          {pending ? 'Saving…' : submitLabel}
+        </Button>
+        {onClear && (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending}
+            className="h-10 rounded-md"
+            onClick={() => {
+              void handleClear()
+            }}
+          >
+            {clearLabel}
+          </Button>
+        )}
+      </div>
     </form>
   )
 }

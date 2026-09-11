@@ -18,4 +18,14 @@ describe('auth config', () => {
       returned: false,
     })
   })
+
+  it("keeps openrouterApiKey out of the sign-up/update-user API and the client-facing user shape, like todoistToken (ADR-0002, issue #136)", () => {
+    const field = auth.options.user?.additionalFields?.openrouterApiKey
+    expect(field).toMatchObject({
+      type: 'string',
+      required: false,
+      input: false,
+      returned: false,
+    })
+  })
 })
