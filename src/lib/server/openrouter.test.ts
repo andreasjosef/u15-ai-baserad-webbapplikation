@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   createOpenRouterClient,
   INTERVIEW_MODEL_ENV_VAR,
+  resolveInterviewApiKey,
   resolveInterviewModel,
 } from './openrouter.ts'
 
@@ -37,6 +38,34 @@ describe('resolveInterviewModel', () => {
     expect(resolveInterviewModel({ [INTERVIEW_MODEL_ENV_VAR]: '' })).toBe(
       'anthropic/claude-sonnet-4.6',
     )
+  })
+})
+
+// Issue #137: call-time key precedence — the user's own decrypted key
+// wins when present and non-blank, the shared key stays the default.
+describe('resolveInterviewApiKey', () => {
+  it('uses the user key when present', () => {
+    expect(resolveInterviewApiKey('sk-or-user', 'sk-or-shared')).toBe('sk-or-user')
+  })
+
+  it('falls back to the shared key when the user key is absent', () => {
+    expect(resolveInterviewApiKey(null, 'sk-or-shared')).toBe('sk-or-shared')
+    expect(resolveInterviewApiKey(undefined, 'sk-or-shared')).toBe('sk-or-shared')
+  })
+
+  it('falls back to the shared key when the user key is blank', () => {
+    expect(resolveInterviewApiKey('', 'sk-or-shared')).toBe('sk-or-shared')
+    expect(resolveInterviewApiKey('   ', 'sk-or-shared')).toBe('sk-or-shared')
+  })
+
+  it('trims a padded user key', () => {
+    expect(resolveInterviewApiKey('  sk-or-user  ', 'sk-or-shared')).toBe('sk-or-user')
+  })
+
+  it('returns null when neither key is usable', () => {
+    expect(resolveInterviewApiKey(null, undefined)).toBeNull()
+    expect(resolveInterviewApiKey(null, '')).toBeNull()
+    expect(resolveInterviewApiKey('', '   ')).toBeNull()
   })
 })
 

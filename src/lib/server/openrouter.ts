@@ -12,6 +12,22 @@ export function resolveInterviewModel(env: Record<string, string | undefined>): 
   return env[INTERVIEW_MODEL_ENV_VAR]?.trim() || DEFAULT_INTERVIEW_MODEL
 }
 
+// Issue #137: which OpenRouter key an Interview turn calls with — the
+// user's own decrypted key when present and non-blank, otherwise the
+// shared production key (the default, so using Hone never requires a
+// key paste). Same trim-and-fall-through shape as resolveInterviewModel;
+// null means nothing usable, which the wiring turns into its own error.
+export function resolveInterviewApiKey(
+  userKey: string | null | undefined,
+  sharedKey: string | null | undefined,
+): string | null {
+  const personal = userKey?.trim()
+  if (personal) {
+    return personal
+  }
+  return sharedKey?.trim() || null
+}
+
 export interface OpenRouterToolCall {
   id: string
   type: 'function'

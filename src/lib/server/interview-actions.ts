@@ -18,12 +18,14 @@ import type { TaskEditInput, TaskPriority } from '../task-input.ts'
 import { parseTaskEdit, toTaskPriority } from '../task-input.ts'
 import { auth } from '../auth.ts'
 import { db } from './db/client.ts'
-import { interviewSessions, messages, tasks } from './db/schema/index.ts'
+import { interviewSessions, messages, tasks, user } from './db/schema/index.ts'
 import { runInterviewTurn } from './interview-turn.ts'
 import {
   createOpenRouterClient,
+  resolveInterviewApiKey,
   resolveInterviewModel,
 } from './openrouter.ts'
+import { decryptToken, loadTokenEncryptionKey } from './token-crypto.ts'
 
 export interface InterviewTurnView {
   sessionId: string
@@ -43,8 +45,22 @@ type InterviewTurnResult =
 // copy, matching auth-result.ts's GENERIC_FAILURE pattern.
 export const INTERVIEW_FAILURE = 'Something went wrong reaching the interviewer. Try again.'
 
-function loadLlm() {
-  const apiKey = process.env.OPENROUTER_API_KEY
+// Issue #137: the turn calls with the user's own saved OpenRouter key
+// when one is saved, otherwise the shared OPENROUTER_API_KEY. Decryption
+// happens only here, at the point of calling the API (ADR-0002, same as
+// the Todoist token); the pure precedence decision lives in
+// resolveInterviewApiKey. Additive, not a replacement — the shared key
+// stays the default.
+async function loadLlm(userId: string) {
+  const [userRow] = await db
+    .select({ openrouterApiKey: user.openrouterApiKey })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1)
+  const userKey = userRow?.openrouterApiKey
+    ? decryptToken(userRow.openrouterApiKey, loadTokenEncryptionKey())
+    : null
+  const apiKey = resolveInterviewApiKey(userKey, process.env.OPENROUTER_API_KEY)
   if (!apiKey) {
     throw new Error('OPENROUTER_API_KEY is not set — see .env.example.')
   }
@@ -80,7 +96,7 @@ async function runTurn(
     }
     const result = await runInterviewTurn(
       {
-        llm: loadLlm(),
+        llm: await loadLlm(userId),
         appendMessage: async (id, row) => {
           await db.insert(messages).values({ sessionId: id, ...row })
         },
