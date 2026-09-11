@@ -6,10 +6,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { SettingsView } from './settings-view.tsx'
-
-type AuthResult =
-  | { ok: true }
-  | { ok: false; message: string }
+import type { AuthResult } from '../lib/auth-result.ts'
 
 function renderSettingsView({
   tokenSaved = false,

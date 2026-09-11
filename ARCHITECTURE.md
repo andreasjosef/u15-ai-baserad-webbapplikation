@@ -162,11 +162,11 @@ intentional (`CONTEXT.md` "Phase", `docs/plan.md` §7).
 Better Auth is mounted as a catch-all route at `src/routes/api/auth/$.ts`
 (both GET and POST). `src/lib/auth.ts` configures it: email+password,
 `tanstackStartCookies()` **last** in the plugin list (otherwise sign-in
-cookies are silently dropped — `docs/research.md` §4.1), and one
-`additionalField` `todoistToken` that is never settable via the API and
-never returned to the client. Route guards call `getSession()` in
-`beforeLoad` and hand the result to the pure `requireAuthSession` /
-`requireReviewableBreakdown` functions.
+cookies are silently dropped — `docs/research.md` §4.1), and the
+`additionalFields` `todoistToken` and `openrouterApiKey` — both never
+settable via the API and never returned to the client. Route guards call
+`getSession()` in `beforeLoad` and hand the result to the pure
+`requireAuthSession` / `requireReviewableBreakdown` functions.
 
 ## Deployment gotchas
 

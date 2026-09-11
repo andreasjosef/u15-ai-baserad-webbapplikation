@@ -20,6 +20,7 @@ import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 
 import { SettingsView } from '../../components/settings-view.tsx'
+import type { AuthResult } from '../../lib/auth-result.ts'
 import { requireAuthSession } from '../../lib/require-auth-session.ts'
 import { getSession } from '../../lib/server/session.ts'
 import {
@@ -65,6 +66,20 @@ function backLabelFor(from: string | undefined): string {
   return 'Hone'
 }
 
+// One shape for all three injected actions: run the server function, and
+// when it succeeded update the matching local status so the row copy
+// never goes stale.
+async function updateStatusAfter(
+  action: () => Promise<AuthResult>,
+  onOk: () => void,
+): Promise<AuthResult> {
+  const result = await action()
+  if (result.ok) {
+    onOk()
+  }
+  return result
+}
+
 function SettingsPage() {
   const { session, hasToken, hasKey } = Route.useRouteContext()
   const { from } = Route.useSearch()
@@ -85,27 +100,15 @@ function SettingsPage() {
       onBack={() => {
         router.history.push(from ?? '/')
       }}
-      onSubmitToken={async (data) => {
-        const result = await saveTodoistToken({ data })
-        if (result.ok) {
-          setTokenSaved(true)
-        }
-        return result
-      }}
-      onSubmitOpenRouterKey={async (data) => {
-        const result = await saveOpenRouterKey({ data })
-        if (result.ok) {
-          setKeySaved(true)
-        }
-        return result
-      }}
-      onClearOpenRouterKey={async () => {
-        const result = await clearOpenRouterKey()
-        if (result.ok) {
-          setKeySaved(false)
-        }
-        return result
-      }}
+      onSubmitToken={(data) =>
+        updateStatusAfter(() => saveTodoistToken({ data }), () => setTokenSaved(true))
+      }
+      onSubmitOpenRouterKey={(data) =>
+        updateStatusAfter(() => saveOpenRouterKey({ data }), () => setKeySaved(true))
+      }
+      onClearOpenRouterKey={() =>
+        updateStatusAfter(() => clearOpenRouterKey(), () => setKeySaved(false))
+      }
     />
   )
 }
