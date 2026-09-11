@@ -7,6 +7,34 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # A real (ephemeral) Postgres, not a mock — the Drizzle schema and its
+    # migration history are themselves part of what's under test (root
+    # spec's Testing Decisions).
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hone_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      # CI has no pooler, so both point at the one ephemeral instance —
+      # unlike Supabase, where migrations (direct, 5432) and the running
+      # app (transaction pooler, 6543) are deliberately different connections.
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/hone_test
+      MIGRATION_DATABASE_URL: postgres://postgres:postgres@localhost:5432/hone_test
+      BETTER_AUTH_SECRET: ci-only-secret-unused-outside-this-job
+      BETTER_AUTH_URL: http://localhost:3000
+      # Stretched into the AES-256 key that schema.test.ts's "user" spec
+      # (#136) uses to round-trip the encrypted credential columns — never
+      # needed anything real, just needs to exist (see token-crypto.ts).
+      TOKEN_ENCRYPTION_KEY: ci-only-key-unused-outside-this-job
     steps:
       - uses: actions/checkout@v4
 
@@ -14,9 +42,25 @@ jobs:
         with:
           node-version: lts/*
 
-      # NOTE: fails until the app's first scaffolding ticket adds a package.json
-      # with `typecheck` and `test` npm scripts. That failure is expected and
-      # correct until then — see docs/team-workflow.md §5.
       - run: npm ci
       - run: npm run typecheck
+      - run: npm run db:migrate
       - run: npm test
+
+      # Guards against a repeat of the Sep 2026 incident: TanStack Start has
+      # no built-in deployment adapter, so without the nitro() plugin (with
+      # its Vercel preset pinned) in vite.config.ts, `vite build` still
+      # succeeds but emits no server function — every route then 404s on
+      # Vercel (x-vercel-error: NOT_FOUND) with no error anywhere in the
+      # build log. This runs the exact same `npm run build` CI already uses
+      # elsewhere, on a clean checkout, so it also catches the preset
+      # silently reverting to node-server if it's ever left to autodetect
+      # again (autodetection keys off a gitignored local .vercel/project.json
+      # that CI never has).
+      - name: Verify Vercel build emits a server function
+        run: |
+          npm run build
+          test -f .vercel/output/functions/__server.func/index.mjs || {
+            echo "::error::Build produced no .vercel/output/functions/__server.func/index.mjs — Vercel would 404 on every route. Check that nitro({ preset: 'vercel' }) is registered in vite.config.ts."
+            exit 1
+          }

@@ -61,3 +61,57 @@ For our expected volume (a few hundred sessions, each ~5–15k tokens plus a han
 - **Bun** — only supported with React 19+.
 
 **Rough edges:** No hard evidence of specific bugs found; the main practical risk is pre-1.0 API churn. Two docs-stated caveats: (1) the Nitro Vite plugin for non-Vercel deployment "is still under active development"; (2) cross-check code samples against the live `tanstack.com/start/latest` docs rather than older blog posts, since the RC has a fast release cadence.
+
+## 4. Supabase + Better Auth + TanStack Start integration notes
+
+Added during implementation (2026-09-04), once Better Auth and the Supabase connection were actually wired up — later than, and not part of, the 2026-08-30 planning pass above.
+
+### 4.1 Better Auth mounting & cookie-writing order
+
+**Bottom line:** Mount Better Auth as a catch-all TanStack Start server route, and put `tanstackStartCookies()` **last** in the Better Auth plugins list.
+
+- Better Auth's `auth.handler(request)` is wired to both `GET` and `POST` on a `/api/auth/$` catch-all route (`src/routes/api/auth/$.ts`), so every Better Auth endpoint (sign-up, sign-in, session, etc.) is reachable under `/api/auth/*`.
+- The `tanstackStartCookies()` plugin must be last in the plugins list — otherwise sign-in/sign-up cookies get written as a raw `Set-Cookie` header, which TanStack Start drops instead of writing through its own response-cookie machinery.
+- Read sessions server-side via `getRequestHeaders()` from `@tanstack/react-start/server`, not `request.headers` — the latter stopped working partway through TanStack Start's RC. Tracked upstream: better-auth/better-auth#6818.
+
+### 4.2 One linear migration history for Better Auth + app tables
+
+**Bottom line:** Generate Better Auth's tables once via `npx auth@latest generate`, then treat them as ordinary Drizzle schema from then on — never run `auth migrate` again.
+
+- `npx auth@latest generate` writes Better Auth's tables into `src/lib/server/db/schema/auth.ts`, left structurally untouched afterward.
+- That file is combined with the app's own tables (`schema/app.ts`) into one barrel (`schema/index.ts`), so both migrate through the same `drizzle-kit generate`/`migrate` history — one linear migration history instead of two competing migrators (per ADR-0001).
+- Never run `auth migrate` against this schema — it's a separate migrator that fights Drizzle Kit's own migration bookkeeping.
+
+### 4.3 Supabase's two connection strings are not interchangeable
+
+**Bottom line:** the running app connects through the transaction-mode pooler (port 6543, `prepare: false`); migrations run against the direct connection (port 5432) instead. Mixing them up, or grabbing the wrong one during initial setup, is the most likely real-world gotcha here.
+
+- **Transaction pooler** (`DATABASE_URL`, port 6543): what the running app (Better Auth's and Drizzle's Postgres clients) connects through. PgBouncer transaction mode doesn't support named prepared statements, so the Postgres client needs `prepare: false` (`src/lib/server/db/client.ts`).
+- **Direct connection** (`MIGRATION_DATABASE_URL`, port 5432): what `drizzle-kit generate`/`migrate` and `npx auth@latest generate` run against instead. Supports prepared statements, which migrations need.
+- **IPv4/IPv6 gotcha, confirmed 2026-09-04:** Supabase's direct-connection host (`db.<project>.supabase.co`) resolves to an AAAA (IPv6) record only — no A/IPv4 record. On a network with no outbound IPv6 route, `drizzle-kit migrate` fails with `ENETUNREACH`, and drizzle-kit swallows the underlying error (prints only a spinner, then exit code 1, no message). If this happens, swap `MIGRATION_DATABASE_URL` for Supabase's **Session pooler** connection string instead (Database settings → Connection string → Session pooler tab) — same IPv4-compatible reachability, and unlike the transaction pooler it still supports prepared statements. `scripts/supabase-setup.sh` already warns about this at the point where it asks for the direct connection string.
+- **Shared Pooler vs. Dedicated Pooler, confirmed 2026-09-04:** Supabase's Connect dialog now offers a second, separate **Dedicated Pooler** (PgBouncer) option that also listens in transaction mode on port 6543 — easy to grab by mistake, since it sits right next to the one this project actually wants. The Dedicated Pooler is IPv6-only unless you buy the paid IPv4 add-on (Pro plan+), so picking it on a free-plan/IPv4-only network fails the same way the direct connection does. The **Shared Pooler** (Supavisor — the classic pooler this project has always used) is IPv4-native on the free plan in *both* modes, no add-on needed: use Shared Pooler → Transaction mode for `DATABASE_URL` and Shared Pooler → Session mode for `MIGRATION_DATABASE_URL`. Source: https://supabase.com/docs/guides/database/connecting-to-postgres, https://supabase.com/docs/guides/platform/ipv4-address.
+  - **The dashboard shows a misleading banner here — verify with a real connection test, not the banner.** The Connect dialog's Transaction-pooler page shows an "uses IPv6 by default, enable the dedicated IPv4 address add-on" banner even while the **Shared pooler** connection string is the one displayed underneath it — the banner describes the Dedicated Pooler default, not the Shared Pooler box on the same screen. Confirmed by direct test against the Shared Pooler host (`aws-<n>-<region>.pooler.supabase.com`): `getent ahostsv4 <host>` returns real A records, and `timeout 5 bash -c 'cat < /dev/null > /dev/tcp/<ip>/6543'` (and `/5432`) both connect successfully over plain IPv4. Don't take the banner at face value — DNS/TCP-test the actual host in the box you're about to copy from.
+
+## 5. Constructing a direct Todoist project URL
+
+Added 2026-09-08, investigating whether Hone can link users straight to their Todoist project (stored as `todoist_project_id` per Session, created via `createProject` in `src/lib/server/todoist.ts`). Fetched the live Redoc-rendered reference at https://developer.todoist.com/api/v1/ directly (not from training-data recall) and read the actual response schemas/examples and the migration notes rendered on that page.
+
+**Bottom line:** No `url` field exists on the project object anywhere in the current API v1 — confirmed against the literal example response JSON for both `POST /api/v1/projects` and `GET /api/v1/projects/{project_id}`. Todoist *does* document a stable, constructible web URL pattern for **tasks** (`https://app.todoist.com/app/task/<v2_id>`, after explicitly removing the old `url` field from task objects) — but never states the equivalent for projects anywhere in the docs. `https://app.todoist.com/app/project/<id>` works in practice (and matches the app's own routing plus the documented desktop `todoist://project?id={id}` scheme) but is an **unconfirmed, undocumented convention**, not a stated contract.
+
+**(a) API response field — confirmed absent:**
+- Verified against https://developer.todoist.com/api/v1/, Projects tag, the `create_project_api_v1_projects_post` and `get_project_api_v1_projects__project_id__get` operations. Both show the identical `PersonalProjectSyncView` example response, with these exact top-level fields and **no `url`**:
+  `id, can_assign_tasks, can_comment, child_order, order_key, is_collapsed, color, creator_uid, created_at, is_archived, is_deleted, is_favorite, is_frozen, name, is_shared, updated_at, view_style, default_order, default_order_key, description, public_key, access, role, parent_id, inbox_project`.
+- `public_key` looks tempting but isn't a "view this project" link — it belongs to the project's public-share/invite mechanism (the `Share a project` Sync endpoint), a different feature entirely.
+- So `createProject` in `src/lib/server/todoist.ts` (which currently only reads `id` off the response) isn't missing a field by omission — there's nothing to read. No amount of requesting extra fields will surface a project URL from this endpoint.
+
+**(b) Documented URL pattern — exists for tasks, not for projects:**
+- The same reference has a `Migrating from v9 → General changes → Task URLs` section stating plainly: the old task object's `url` field (`https://todoist.com/showTask?id=<v1_id>`) "has been removed," and gives the replacement developers are expected to build themselves: `https://app.todoist.com/app/task/<v2_id>`.
+- There is no equivalent "Project URLs" section. A full-text search of the rendered reference page for `project_url`, `projectUrl`, "Project URL", and `app.todoist.com/app/project` returns zero matches — Todoist documents the constructible pattern for tasks but never states one for projects, even though the app itself clearly uses `/app/project/<id>` routes.
+- The one *officially documented* project-URL mechanism on that page is the desktop-app custom protocol (`Url schemes → Projects` section): `todoist://project?id={id}` (e.g. `todoist://project?id=128501470`). Real and documented, but it's a `todoist://` handler that opens the native desktop app (silent no-op without it installed) — not an `https://` link usable in a browser, email, or plain `<a href>`.
+
+**Answer for Hone's purposes:** to show an "open in Todoist" link from a stored `todoist_project_id`, build `https://app.todoist.com/app/project/<id>` client-side by analogy with the officially-documented task pattern. This is the pattern to use, but flag it internally as observed-not-documented: unlike the task URL, Todoist has not committed to it in writing, so treat it as "works today" rather than a guaranteed stable contract.
+
+**Sources (verified 2026-09-08):**
+- https://developer.todoist.com/api/v1/ — Projects tag → `create_project_api_v1_projects_post` (`POST /api/v1/projects`) and `get_project_api_v1_projects__project_id__get` (`GET /api/v1/projects/{project_id}`) response schema/examples
+- https://developer.todoist.com/api/v1/ — `Migrating from v9 → General changes → Task URLs` section
+- https://developer.todoist.com/api/v1/ — `Url schemes → Projects` section (desktop app custom protocol)

@@ -1,0 +1,29 @@
+name: Discord PR notifications
+
+# Replaces the old native GitHub -> Discord webhook (Settings -> Webhooks),
+# which used Discord's own `/github`-formatted endpoint. That endpoint is
+# known-flaky (valid payload in, empty Discord message out — see issue
+# #41), so this workflow builds and posts the Discord message itself
+# instead of relying on Discord's undocumented formatter. Deactivate the
+# native webhook once this is verified working, so a PR doesn't double-post.
+on:
+  pull_request:
+    types: [opened, closed]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    # Skip drafts and bot-authored PRs (e.g. a future Dependabot PR) before
+    # the message-building script or the Discord POST ever run.
+    if: github.event.pull_request.draft == false && github.event.pull_request.user.type != 'Bot'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Post Discord notification
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: node --experimental-strip-types .github/scripts/post-discord-pr-notification.ts
