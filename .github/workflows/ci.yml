@@ -31,6 +31,10 @@ jobs:
       MIGRATION_DATABASE_URL: postgres://postgres:postgres@localhost:5432/hone_test
       BETTER_AUTH_SECRET: ci-only-secret-unused-outside-this-job
       BETTER_AUTH_URL: http://localhost:3000
+      # Stretched into the AES-256 key that schema.test.ts's "user" spec
+      # (#136) uses to round-trip the encrypted credential columns — never
+      # needed anything real, just needs to exist (see token-crypto.ts).
+      TOKEN_ENCRYPTION_KEY: ci-only-key-unused-outside-this-job
     steps:
       - uses: actions/checkout@v4
 
